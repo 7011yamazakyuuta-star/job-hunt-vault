@@ -530,7 +530,7 @@ a {
 
 .company-intake-panel {
   display: grid;
-  grid-template-columns: minmax(160px, 1fr) minmax(150px, 0.8fr) 178px minmax(150px, 0.8fr) auto;
+  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
   gap: 10px;
   align-items: end;
   border: 1px solid #e3e8e3;
@@ -538,6 +538,10 @@ a {
   background: #fbfcfa;
   margin-bottom: 12px;
   padding: 12px;
+}
+
+.company-intake-panel label:first-child {
+  grid-column: span 2;
 }
 
 .company-intake-panel label {
@@ -561,6 +565,11 @@ a {
 .industry-select select:focus {
   border-color: #185b50;
   outline: 3px solid #dcebe6;
+}
+
+.company-intake-panel .secondary-action {
+  min-height: 38px;
+  justify-content: center;
 }
 
 .segmented-control button {
@@ -645,6 +654,10 @@ a {
   align-items: center;
   min-width: 0;
   gap: 10px;
+}
+
+.company-cell small {
+  line-height: 1.35;
 }
 
 .logo-chip {
@@ -881,7 +894,7 @@ a {
 .vault-grid,
 .settings-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 10px;
 }
 
@@ -1180,6 +1193,10 @@ a {
 
   .company-intake-panel {
     grid-template-columns: 1fr;
+  }
+
+  .company-intake-panel label:first-child {
+    grid-column: auto;
   }
 
   .matrix {

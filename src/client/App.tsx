@@ -35,9 +35,12 @@ type LocalText = {
 type Company = {
   id: string;
   name: LocalText;
+  nameKana: string;
   domain: string;
   industry: LocalText;
   dueDate: string;
+  ticker: string | null;
+  exchange: string | null;
   status: CompanyStatus;
   stage: LocalText;
   owner: LocalText;
@@ -68,18 +71,18 @@ const copy = {
     status: {
       checking: "接続確認中",
       online: "オンライン",
-      offline: "API未接続",
+      offline: "保存先未接続",
     },
     home: {
       eyebrow: "本日の運用",
       title: "今日の選考ボード",
       login: "Googleでログイン",
       refresh: "セッション更新",
-      queue: "優先キュー",
+      queue: "今日やること",
       pipeline: "企業台帳",
       schedule: "日程",
       vault: "個人金庫",
-      logos: "企業ロゴ連携",
+      logos: "企業情報",
       newCompany: "企業を追加",
     },
   },
@@ -103,7 +106,7 @@ const copy = {
     status: {
       checking: "checking",
       online: "online",
-      offline: "API offline",
+      offline: "storage offline",
     },
     home: {
       eyebrow: "Today",
@@ -114,7 +117,7 @@ const copy = {
       pipeline: "Company ledger",
       schedule: "Schedule",
       vault: "Private vault",
-      logos: "Logo provider",
+      logos: "Company info",
       newCompany: "Add company",
     },
   },
@@ -142,9 +145,12 @@ const companies: Company[] = [
   {
     id: "sony",
     name: { ja: "ソニーグループ", en: "Sony Group" },
+    nameKana: "そにーぐるーぷ",
     domain: "sony.com",
     industry: { ja: "電機・エンタメ", en: "Electronics / entertainment" },
     dueDate: "2026-06-24T10:00:00.000Z",
+    ticker: "6758",
+    exchange: "TSE",
     status: "interview",
     stage: { ja: "二次面接前", en: "Second interview" },
     owner: { ja: "自分", en: "Me" },
@@ -156,9 +162,12 @@ const companies: Company[] = [
   {
     id: "recruit",
     name: { ja: "リクルート", en: "Recruit" },
+    nameKana: "りくるーと",
     domain: "recruit.co.jp",
     industry: { ja: "人材・メディア", en: "HR / media" },
     dueDate: "2026-06-27T14:59:00.000Z",
+    ticker: "6098",
+    exchange: "TSE",
     status: "applied",
     stage: { ja: "ES提出済み", en: "ES submitted" },
     owner: { ja: "AK", en: "AK" },
@@ -170,9 +179,12 @@ const companies: Company[] = [
   {
     id: "toyota",
     name: { ja: "トヨタ自動車", en: "Toyota Motor" },
+    nameKana: "とよたじどうしゃ",
     domain: "toyota-global.com",
     industry: { ja: "自動車", en: "Automotive" },
     dueDate: "2026-07-02T14:59:00.000Z",
+    ticker: "7203",
+    exchange: "TSE",
     status: "research",
     stage: { ja: "企業研究", en: "Research" },
     owner: { ja: "自分", en: "Me" },
@@ -184,9 +196,12 @@ const companies: Company[] = [
   {
     id: "nintendo",
     name: { ja: "任天堂", en: "Nintendo" },
+    nameKana: "にんてんどう",
     domain: "nintendo.com",
     industry: { ja: "ゲーム・玩具", en: "Games / toys" },
     dueDate: "2026-07-05T14:59:00.000Z",
+    ticker: "7974",
+    exchange: "TSE",
     status: "offer",
     stage: { ja: "条件確認", en: "Offer review" },
     owner: { ja: "自分", en: "Me" },
@@ -198,9 +213,12 @@ const companies: Company[] = [
   {
     id: "cyberagent",
     name: { ja: "サイバーエージェント", en: "CyberAgent" },
+    nameKana: "さいばーえーじぇんと",
     domain: "cyberagent.co.jp",
     industry: { ja: "広告・IT", en: "Advertising / IT" },
     dueDate: "2026-07-10T14:59:00.000Z",
+    ticker: "4751",
+    exchange: "TSE",
     status: "hold",
     stage: { ja: "連絡待ち", en: "Waiting" },
     owner: { ja: "YU", en: "YU" },
@@ -293,9 +311,9 @@ export default function App() {
     <div className="app-shell" lang={locale}>
       <aside className="sidebar">
         <Link className="brand" to="/" aria-label="Job Hunt Vault home">
-          <span className="brand-mark">JH</span>
+          <span className="brand-mark">就</span>
           <span>
-            <strong>Job Hunt Vault</strong>
+            <strong>{locale === "ja" ? "就活台帳" : "Job Hunt Vault"}</strong>
             <small>{t.status[health]}</small>
           </span>
         </Link>
@@ -327,7 +345,7 @@ export default function App() {
           <div className="avatar">{initialsFor(user?.name ?? "Dev User")}</div>
           <div>
             <strong>{user?.name ?? (locale === "ja" ? "未ログイン" : "Not signed in")}</strong>
-            <small>{user?.email ?? (locale === "ja" ? "Google OAuth / ローカル確認" : "Google OAuth / local mock")}</small>
+            <small>{user?.email ?? (locale === "ja" ? "ログイン前の確認画面" : "Preview before sign-in")}</small>
           </div>
         </div>
       </aside>
@@ -379,8 +397,8 @@ function HomePage({ locale, user }: { locale: Locale; user: ApiUser | null }) {
       <section className="ops-grid" aria-label={locale === "ja" ? "本日の要点" : "Today summary"}>
         <Metric label={locale === "ja" ? "本日締切" : "Due today"} value="2" trend={locale === "ja" ? "ES / 面接準備" : "ES / prep"} />
         <Metric label={locale === "ja" ? "次の面接" : "Next interview"} value="6/24" trend="10:00" />
-        <Metric label={locale === "ja" ? "未整理メモ" : "Unsorted notes"} value="5" trend={locale === "ja" ? "共有前確認" : "Review before sharing"} />
-        <Metric label={locale === "ja" ? "ロゴ候補" : "Logo candidates"} value="5" trend={locale === "ja" ? "ドメイン登録済み" : "Domains ready"} />
+        <Metric label={locale === "ja" ? "要確認メモ" : "Notes to review"} value="5" trend={locale === "ja" ? "共有前に確認" : "Review before sharing"} />
+        <Metric label={locale === "ja" ? "企業情報" : "Company info"} value="5" trend={locale === "ja" ? "ドメイン登録済み" : "Domains ready"} />
       </section>
 
       <DeadlineStrip companies={companies} locale={locale} />
@@ -655,7 +673,7 @@ function CompanyTable({ companies: rows, locale }: { companies: Company[]; local
             <span className={`logo-chip ${company.accent}`}>{initialsFor(text(company.name, locale))}</span>
             <span>
               <strong>{text(company.name, locale)}</strong>
-              <small>{company.domain}</small>
+              <small>{[company.domain, formatTicker(company)].filter(Boolean).join(" / ")}</small>
             </span>
           </span>
           <span>{text(company.industry, locale)}</span>
@@ -686,6 +704,8 @@ function CompanyDetail({ company, locale }: { company: Company; locale: Locale }
         <div className="detail-grid">
           <DetailItem label={locale === "ja" ? "現在地" : "Current step"} value={text(company.stage, locale)} />
           <DetailItem label={locale === "ja" ? "期限" : "Deadline"} value={text(company.due, locale)} />
+          <DetailItem label={locale === "ja" ? "業種" : "Industry"} value={text(company.industry, locale)} />
+          <DetailItem label={locale === "ja" ? "証券コード" : "Ticker"} value={formatTicker(company) ?? (locale === "ja" ? "未登録" : "Not set")} />
           <DetailItem label={locale === "ja" ? "適性検査" : "Test"} value={company.test} />
           <DetailItem label={locale === "ja" ? "公開範囲" : "Visibility"} value={text(company.visibility, locale)} />
         </div>
@@ -771,12 +791,24 @@ function CompanyIntakePanel({ locale }: { locale: Locale }) {
         <input placeholder={locale === "ja" ? "例: ソニーグループ" : "Example: Sony Group"} />
       </label>
       <label>
+        {locale === "ja" ? "読み" : "Reading"}
+        <input placeholder={locale === "ja" ? "そにーぐるーぷ" : "sony group"} />
+      </label>
+      <label>
         {locale === "ja" ? "業種" : "Industry"}
         <input placeholder={locale === "ja" ? "例: 電機・エンタメ" : "Example: Electronics"} />
       </label>
       <label>
         {locale === "ja" ? "直近締切" : "Priority deadline"}
         <input type="datetime-local" />
+      </label>
+      <label>
+        {locale === "ja" ? "証券コード" : "Ticker"}
+        <input placeholder={locale === "ja" ? "6758" : "6758"} />
+      </label>
+      <label>
+        {locale === "ja" ? "取引所" : "Exchange"}
+        <input placeholder="TSE" />
       </label>
       <label>
         {locale === "ja" ? "ドメイン" : "Domain"}
@@ -969,7 +1001,7 @@ function VaultPanel({ locale }: { locale: Locale }) {
           </span>
           <div>
             <p className="eyebrow">{locale === "ja" ? "個人金庫" : "Personal Vault"}</p>
-            <h2>{locale === "ja" ? "ブラウザで暗号化してから保存" : "Encrypted before upload"}</h2>
+            <h2>{locale === "ja" ? "ログイン情報や非公開メモを保管" : "Keep credentials and private notes"}</h2>
           </div>
         </div>
         <div className="vault-grid">
@@ -983,8 +1015,8 @@ function VaultPanel({ locale }: { locale: Locale }) {
             <input placeholder={locale === "ja" ? "ソニー MyPage" : "Sony mypage"} />
           </label>
           <label>
-            {locale === "ja" ? "暗号化済みデータ" : "Encrypted payload"}
-            <input placeholder={locale === "ja" ? "ブラウザ内で生成" : "Created in browser"} />
+            {locale === "ja" ? "保存内容" : "Saved content"}
+            <input placeholder={locale === "ja" ? "ID、メモ、確認事項など" : "ID, note, checklist"} />
           </label>
           <button className="primary-action" type="button">
             <LockKeyhole size={17} aria-hidden="true" />
@@ -994,11 +1026,11 @@ function VaultPanel({ locale }: { locale: Locale }) {
       </div>
       <aside className="right-rail">
         <div className="surface setup-notes">
-          <h2>{locale === "ja" ? "金庫の境界" : "Vault boundary"}</h2>
+          <h2>{locale === "ja" ? "非公開の扱い" : "Private handling"}</h2>
           <p>
             {locale === "ja"
-              ? "パスフレーズはブラウザから出ません。サーバーは暗号化済みpayloadだけをユーザー単位で保存します。"
-              : "Passphrases never leave the browser. Server routes filter every credential item by owner user."}
+              ? "内容は本人だけが扱う前提です。共有ルームに企業情報を出しても、金庫の中身は混ざりません。"
+              : "Vault items stay personal even when company records are shared in a room."}
           </p>
         </div>
       </aside>
@@ -1012,8 +1044,8 @@ function SettingsPanel({ locale }: { locale: Locale }) {
       <DetailItem label={locale === "ja" ? "ルーム種別" : "Room type"} value={locale === "ja" ? "共有" : "Shared"} />
       <DetailItem label={locale === "ja" ? "参加方法" : "Join method"} value={locale === "ja" ? "コード + 合言葉" : "Room code + passphrase"} />
       <DetailItem label={locale === "ja" ? "アバター保存" : "Avatar storage"} value="Private R2" />
-      <DetailItem label={locale === "ja" ? "Secrets" : "Secrets"} value="Cloudflare Workers" />
-      <DetailItem label={locale === "ja" ? "ロゴ" : "Logos"} value="Logo.dev optional" />
+      <DetailItem label={locale === "ja" ? "秘密情報" : "Private keys"} value={locale === "ja" ? "管理画面で設定" : "Set in dashboard"} />
+      <DetailItem label={locale === "ja" ? "企業ロゴ" : "Company logos"} value={locale === "ja" ? "候補検索を使用" : "Search candidates"} />
     </section>
   );
 }
@@ -1026,18 +1058,18 @@ function LogoProviderPanel({ locale, company }: { locale: Locale; company?: Comp
           <Globe2 size={18} aria-hidden="true" />
         </span>
         <div>
-          <strong>{locale === "ja" ? "Logo.dev連携" : "Logo.dev provider"}</strong>
-          <small>{locale === "ja" ? "ドメインからロゴURLを解決" : "Resolve logo URL from domain"}</small>
+          <strong>{locale === "ja" ? "企業ロゴ候補" : "Company logo candidates"}</strong>
+          <small>{locale === "ja" ? "企業名・ドメインから探す" : "Find by company name or domain"}</small>
         </div>
       </div>
       <div className="logo-provider-body">
         <DetailItem label={locale === "ja" ? "対象" : "Target"} value={company ? company.domain : "5 domains"} />
-        <DetailItem label={locale === "ja" ? "状態" : "State"} value={locale === "ja" ? "設定待ち" : "Needs key"} />
+        <DetailItem label={locale === "ja" ? "状態" : "State"} value={locale === "ja" ? "利用準備中" : "Setup pending"} />
       </div>
       <p>
         {locale === "ja"
-          ? "公開repoにはロゴ画像を含めず、Cloudflareの環境変数にpublishable keyを入れた時だけAPIがURLを返します。"
-          : "The public repo stores no logo files. The API returns logo URLs only when a publishable key is configured."}
+          ? "ロゴ画像そのものは保存せず、企業名やドメインから候補を探して選べるようにします。"
+          : "Logo files are not bundled. Search candidates by company name or domain and choose the right one."}
       </p>
     </div>
   );
@@ -1160,10 +1192,17 @@ function sortCompanies(rows: Company[], sortMode: CompanySortMode, locale: Local
     }
     if (sortMode === "industry") {
       const industry = collator.compare(text(a.industry, locale), text(b.industry, locale));
-      return industry || collator.compare(text(a.name, locale), text(b.name, locale));
+      return industry || collator.compare(locale === "ja" ? a.nameKana : text(a.name, locale), locale === "ja" ? b.nameKana : text(b.name, locale));
     }
-    return collator.compare(text(a.name, locale), text(b.name, locale));
+    return collator.compare(locale === "ja" ? a.nameKana : text(a.name, locale), locale === "ja" ? b.nameKana : text(b.name, locale));
   });
+}
+
+function formatTicker(company: Company): string | null {
+  if (!company.ticker) {
+    return null;
+  }
+  return company.exchange ? `${company.exchange}:${company.ticker}` : company.ticker;
 }
 
 function daysUntil(dateIso: string): number {

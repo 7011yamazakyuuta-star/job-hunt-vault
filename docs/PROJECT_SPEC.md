@@ -124,6 +124,7 @@ Avatar rules:
 ### Company and Selection APIs
 
 - `GET /api/rooms/:roomId/companies`
+- `GET /api/rooms/:roomId/companies?sort=deadline|kana|industry&industry=自動車`
 - `POST /api/rooms/:roomId/companies`
 - `GET /api/rooms/:roomId/companies/:companyId`
 - `PATCH /api/rooms/:roomId/companies/:companyId`
@@ -175,6 +176,7 @@ The resolver returns cached logo metadata or a Logo.dev image URL when `LOGO_DEV
 
 - `GET /api/company-catalog/search?q=sony`
 - `GET /api/company-catalog/search?industry=自動車&sort=industry`
+- `GET /api/company-catalog/search?q=7203&sort=ticker`
 
 The catalog is reference data only. It supports JPX/manual/provider-backed imports without mutating room-level applications, deadlines, notes, or Vault data.
 
@@ -249,6 +251,23 @@ Required tables:
 - `avatar_thumb_r2_key`
 - `role`
 - `joined_at`
+
+`companies`:
+
+- `id`
+- `room_id`
+- `name`
+- `name_kana`
+- `domain`
+- `industry`
+- `priority_deadline_at`
+- `ticker`
+- `exchange`
+- `career_url`
+- `mypage_url`
+- `logo_url`
+- `memo`
+- `created_by_user_id`
 
 `applications`:
 

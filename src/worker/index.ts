@@ -463,13 +463,22 @@ app.get("/api/rooms/:roomId/companies", async (c) => {
   if (!membership.ok) {
     return membership.response;
   }
+  const sort = c.req.query("sort");
+  const industry = c.req.query("industry")?.trim() || null;
+  const orderBy =
+    sort === "kana"
+      ? "name_kana IS NULL ASC, name_kana ASC, name ASC"
+      : sort === "industry"
+        ? "industry IS NULL ASC, industry ASC, name_kana IS NULL ASC, name_kana ASC, name ASC"
+        : "priority_deadline_at IS NULL ASC, priority_deadline_at ASC, name_kana IS NULL ASC, name_kana ASC, name ASC";
   const result = await c.env.DB.prepare(
-    `SELECT id, name, domain, industry, priority_deadline_at, career_url, mypage_url, logo_url, memo, created_at, updated_at
+    `SELECT id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, career_url, mypage_url, logo_url, memo, created_at, updated_at
      FROM companies
      WHERE room_id = ? AND deleted_at IS NULL
-     ORDER BY priority_deadline_at IS NULL ASC, priority_deadline_at ASC, name ASC`,
+       AND (? IS NULL OR industry = ?)
+     ORDER BY ${orderBy}`,
   )
-    .bind(roomId)
+    .bind(roomId, industry, industry)
     .all();
   return c.json({ companies: result.results ?? [] });
 });
@@ -489,16 +498,19 @@ app.post("/api/rooms/:roomId/companies", async (c) => {
   const id = randomId("company");
   await c.env.DB.prepare(
     `INSERT INTO companies
-      (id, room_id, name, domain, industry, priority_deadline_at, career_url, mypage_url, logo_url, logo_r2_key, memo, created_by_user_id, deleted_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?)`,
+      (id, room_id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, career_url, mypage_url, logo_url, logo_r2_key, memo, created_by_user_id, deleted_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?)`,
   )
     .bind(
       id,
       roomId,
       parsed.data.name,
+      parsed.data.nameKana ?? null,
       parsed.data.domain ?? null,
       parsed.data.industry ?? null,
       parsed.data.priorityDeadlineAt ?? null,
+      parsed.data.ticker ?? null,
+      parsed.data.exchange ?? null,
       parsed.data.careerUrl ?? null,
       parsed.data.mypageUrl ?? null,
       parsed.data.logoUrl ?? null,
@@ -520,7 +532,7 @@ app.get("/api/rooms/:roomId/companies/:companyId", async (c) => {
     return membership.response;
   }
   const company = await c.env.DB.prepare(
-    `SELECT id, name, domain, industry, priority_deadline_at, career_url, mypage_url, logo_url, memo, created_at, updated_at
+    `SELECT id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, career_url, mypage_url, logo_url, memo, created_at, updated_at
      FROM companies
      WHERE id = ? AND room_id = ? AND deleted_at IS NULL
      LIMIT 1`,
@@ -545,7 +557,7 @@ app.patch("/api/rooms/:roomId/companies/:companyId", async (c) => {
     return parsed.response;
   }
   const existing = await c.env.DB.prepare(
-    "SELECT name, domain, industry, priority_deadline_at, career_url, mypage_url, logo_url, memo FROM companies WHERE id = ? AND room_id = ? AND deleted_at IS NULL",
+    "SELECT name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, career_url, mypage_url, logo_url, memo FROM companies WHERE id = ? AND room_id = ? AND deleted_at IS NULL",
   )
     .bind(companyId, roomId)
     .first<CompanyRow>();
@@ -555,14 +567,17 @@ app.patch("/api/rooms/:roomId/companies/:companyId", async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE companies
-     SET name = ?, domain = ?, industry = ?, priority_deadline_at = ?, career_url = ?, mypage_url = ?, logo_url = ?, memo = ?, updated_at = ?
+     SET name = ?, name_kana = ?, domain = ?, industry = ?, priority_deadline_at = ?, ticker = ?, exchange = ?, career_url = ?, mypage_url = ?, logo_url = ?, memo = ?, updated_at = ?
      WHERE id = ? AND room_id = ?`,
   )
     .bind(
       parsed.data.name ?? existing.name,
+      parsed.data.nameKana ?? existing.name_kana,
       parsed.data.domain ?? existing.domain,
       parsed.data.industry ?? existing.industry,
       parsed.data.priorityDeadlineAt ?? existing.priority_deadline_at,
+      parsed.data.ticker ?? existing.ticker,
+      parsed.data.exchange ?? existing.exchange,
       parsed.data.careerUrl ?? existing.career_url,
       parsed.data.mypageUrl ?? existing.mypage_url,
       parsed.data.logoUrl ?? existing.logo_url,
@@ -949,10 +964,10 @@ app.get("/api/company-catalog/search", async (c) => {
   const sort = c.req.query("sort");
   const orderBy =
     sort === "industry"
-      ? "industry IS NULL ASC, industry ASC, normalized_name ASC"
+      ? "industry IS NULL ASC, industry ASC, name_kana IS NULL ASC, name_kana ASC, normalized_name ASC"
       : sort === "ticker"
-        ? "ticker IS NULL ASC, ticker ASC, normalized_name ASC"
-        : "normalized_name ASC";
+        ? "ticker IS NULL ASC, ticker ASC, name_kana IS NULL ASC, name_kana ASC, normalized_name ASC"
+        : "name_kana IS NULL ASC, name_kana ASC, normalized_name ASC";
   const normalizedQuery = normalizeCatalogSearchText(query);
   const like = `%${normalizedQuery}%`;
 
@@ -1115,9 +1130,12 @@ type JoinableRoomRow = {
 
 type CompanyRow = {
   name: string;
+  name_kana: string | null;
   domain: string | null;
   industry: string | null;
   priority_deadline_at: string | null;
+  ticker: string | null;
+  exchange: string | null;
   career_url: string | null;
   mypage_url: string | null;
   logo_url: string | null;

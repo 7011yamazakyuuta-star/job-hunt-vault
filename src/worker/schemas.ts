@@ -9,6 +9,29 @@ const optionalUrl = z
   .or(z.literal("").transform(() => undefined));
 
 const optionalShortText = z.string().trim().max(500).optional();
+const optionalText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((value) => value || undefined)
+    .optional();
+const optionalLowerText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(max)
+    .transform((value) => value || undefined)
+    .optional();
+const optionalUpperText = (max: number) =>
+  z
+    .string()
+    .trim()
+    .toUpperCase()
+    .max(max)
+    .transform((value) => value || undefined)
+    .optional();
 const visibilitySchema = z.enum(["room", "private"]).default("room");
 
 export const createPersonalRoomSchema = z.object({
@@ -52,9 +75,12 @@ export const avatarJsonSchema = z.discriminatedUnion("kind", [
 
 export const companyCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
-  domain: z.string().trim().toLowerCase().max(255).optional(),
-  industry: z.string().trim().max(120).optional(),
+  nameKana: optionalText(160),
+  domain: optionalLowerText(255),
+  industry: optionalText(120),
   priorityDeadlineAt: z.string().datetime().optional(),
+  ticker: optionalUpperText(40),
+  exchange: optionalUpperText(40),
   careerUrl: optionalUrl,
   mypageUrl: optionalUrl,
   logoUrl: optionalUrl,

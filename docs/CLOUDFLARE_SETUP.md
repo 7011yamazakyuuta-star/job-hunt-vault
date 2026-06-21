@@ -387,7 +387,17 @@ Logo.dev の LOGO_DEV_SECRET_KEY と LOGO_DEV_PUBLISHABLE_KEY を登録済みで
 - `.env`
 - `.dev.vars`
 
-JPXなどの企業辞書を入れる場合は、まずD1 databaseを作成してmigrationを適用します。その後、公式データを `company_catalog` にimportします。詳細な設計は `docs/DATA_CATALOG.md` を見てください。
+JPXなどの企業辞書を入れる場合は、まずD1 databaseを作成してmigrationを適用します。migrationで `companies` には読み、直近締切、証券コード、取引所の列が作られ、`company_catalog` にはJPXなどの参照データを入れる列が作られます。
+
+Cloudflare上で手で触るところ:
+
+1. Workers & Pages
+2. `job-hunt-vault`
+3. Settings
+4. D1 database binding が `DB` になっていることを確認
+5. migrationを適用
+
+その後、公式データを `company_catalog` にimportします。詳細な設計は `docs/DATA_CATALOG.md` を見てください。
 
 この段階でCodexに伝えてよいこと:
 
