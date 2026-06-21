@@ -91,6 +91,38 @@ export type CatalogSearchResponse = {
   status: "ok" | "empty";
 };
 
+export type ApiTestReport = {
+  id: string;
+  test_type_id: string | null;
+  source: string | null;
+  notes: string | null;
+  visibility: "room" | "private";
+  created_by_user_id: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TestReportCreateInput = {
+  companyId: string;
+  testTypeId?: string;
+  source?: string;
+  notes?: string;
+  visibility: "room" | "private";
+};
+
+export type ApiVaultItem = {
+  id: string;
+  application_id: string | null;
+  encrypted_payload: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type VaultItemCreateInput = {
+  applicationId?: string;
+  encryptedPayload: string;
+};
+
 export async function getMe(): Promise<{ user: ApiUser | null }> {
   return apiGet("/api/me");
 }
@@ -154,6 +186,30 @@ export async function searchCompanyCatalog(query: string): Promise<CatalogSearch
     params.set("q", query.trim());
   }
   return apiGet(`/api/company-catalog/search?${params.toString()}`);
+}
+
+export async function listTestReports(roomId: string, companyId: string): Promise<{ testReports: ApiTestReport[] }> {
+  return apiGet(
+    `/api/rooms/${encodeURIComponent(roomId)}/companies/${encodeURIComponent(companyId)}/test-reports`,
+  );
+}
+
+export async function createTestReport(
+  roomId: string,
+  input: TestReportCreateInput,
+): Promise<{ testReportId: string }> {
+  return apiPost(`/api/rooms/${encodeURIComponent(roomId)}/test-reports`, input);
+}
+
+export async function listVaultItems(roomId: string): Promise<{ credentialItems: ApiVaultItem[] }> {
+  return apiGet(`/api/rooms/${encodeURIComponent(roomId)}/vault/items`);
+}
+
+export async function createVaultItem(
+  roomId: string,
+  input: VaultItemCreateInput,
+): Promise<{ credentialItemId: string }> {
+  return apiPost(`/api/rooms/${encodeURIComponent(roomId)}/vault/items`, input);
 }
 
 async function apiGet<T>(path: string): Promise<T> {

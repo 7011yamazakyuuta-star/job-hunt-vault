@@ -16,7 +16,8 @@ This repository is public. Do not commit real job-hunting data, account IDs, pas
 - R2 avatar binding skeleton with authenticated Worker delivery.
 - Zod-validated Hono API routes.
 - React + Vite app shell with required frontend routes.
-- Browser-side Vault crypto module using PBKDF2 + AES-GCM.
+- D1-backed company intake, test report entry, and personal Vault item flows.
+- Browser-side Vault crypto using PBKDF2 + AES-GCM before the Worker receives the payload.
 - Optional Logo.dev resolver/search integration for company logos.
 - Step-by-step Cloudflare setup guide in `docs/CLOUDFLARE_SETUP.md`.
 - Company catalog plan in `docs/DATA_CATALOG.md`.
@@ -46,6 +47,7 @@ This repository is public. Do not commit real job-hunting data, account IDs, pas
 - Private application progress is visible only to the owner user.
 - Vault credential payloads are encrypted in the browser; the API accepts encrypted JSON only.
 - The Vault master passphrase must never be sent to the Worker.
+- Vault labels and saved content are both stored inside the encrypted payload.
 - Avatar images are stored in private R2 and served through authorized Worker routes.
 - Raw R2 URLs are not exposed.
 - Request bodies, passphrases, session tokens, credential plaintext, and image bytes must not be logged.

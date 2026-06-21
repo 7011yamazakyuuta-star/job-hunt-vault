@@ -26,19 +26,26 @@ import {
   createCompany,
   createPersonalRoom,
   createSharedRoom,
+  createTestReport,
+  createVaultItem,
   getHealth,
   getMe,
   joinRoom,
   listRooms,
   listRoomCompanies,
+  listTestReports,
+  listVaultItems,
   searchCompanyCatalog,
   searchLogoCandidates,
   type ApiCompany,
   type ApiRoomListItem,
+  type ApiTestReport,
   type ApiUser,
+  type ApiVaultItem,
   type CatalogCompany,
   type LogoSearchResult,
 } from "./api";
+import { decryptVaultText, encryptVaultText, type EncryptedVaultPayload } from "./vaultCrypto";
 
 type Locale = "ja" | "en";
 type CompanyStatus = "research" | "applied" | "interview" | "offer" | "hold";
@@ -65,6 +72,24 @@ type Company = {
   test: string;
   visibility: LocalText;
   accent: "blue" | "green" | "amber" | "rose" | "violet";
+};
+
+type TestReportDisplay = {
+  id: string;
+  company: Company;
+  type: string;
+  source: LocalText;
+  notes: string;
+  visibility: "room" | "private";
+  updated: LocalText;
+  updatedAt: string;
+};
+
+type VaultPlainPayload = {
+  version: 1;
+  label: string;
+  content: string;
+  savedAt: string;
 };
 
 const copy = {
@@ -313,10 +338,37 @@ const kanbanColumns = [
   { title: { ja: "内定/条件", en: "Offer" }, status: "offer" as const },
 ];
 
-const testReports = [
-  { company: companies[0], type: "TG-WEB", source: { ja: "共有メモ", en: "Room note" }, updated: { ja: "今日", en: "Today" } },
-  { company: companies[1], type: "SPI", source: { ja: "先輩レポート", en: "Past candidate" }, updated: { ja: "昨日", en: "Yesterday" } },
-  { company: companies[3], type: "CUBIC", source: { ja: "手入力", en: "Manual" }, updated: { ja: "6/18", en: "Jun 18" } },
+const sampleTestReports: TestReportDisplay[] = [
+  {
+    id: "sample-sony-tgweb",
+    company: companies[0],
+    type: "TG-WEB",
+    source: { ja: "共有メモ", en: "Room note" },
+    notes: "言語は時間配分、非言語は図表問題を先に確認。",
+    visibility: "room",
+    updated: { ja: "今日", en: "Today" },
+    updatedAt: "2026-06-21T09:00:00.000Z",
+  },
+  {
+    id: "sample-recruit-spi",
+    company: companies[1],
+    type: "SPI",
+    source: { ja: "先輩レポート", en: "Past candidate" },
+    notes: "性格検査は一貫性重視。計数は推論問題が多い。",
+    visibility: "room",
+    updated: { ja: "昨日", en: "Yesterday" },
+    updatedAt: "2026-06-20T09:00:00.000Z",
+  },
+  {
+    id: "sample-nintendo-cubic",
+    company: companies[3],
+    type: "CUBIC",
+    source: { ja: "手入力", en: "Manual" },
+    notes: "短時間で回答する形式。事前に例題だけ確認。",
+    visibility: "private",
+    updated: { ja: "6/18", en: "Jun 18" },
+    updatedAt: "2026-06-18T09:00:00.000Z",
+  },
 ];
 
 const referenceNow = new Date("2026-06-21T09:00:00+09:00");
@@ -709,7 +761,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
   }, [industryFilter, locale, roomId, sortMode]);
 
   useEffect(() => {
-    if (["overview", "companies", "company-detail", "calendar", "kanban"].includes(tab)) {
+    if (["overview", "companies", "company-detail", "calendar", "kanban", "tests"].includes(tab)) {
       void reloadCompanies();
     }
   }, [reloadCompanies, tab]);
@@ -762,7 +814,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
     return (
       <section className="surface table-surface">
         <PanelHeader title={locale === "ja" ? "適性検査レポート" : "Test reports"} actionLabel={locale === "ja" ? "追加" : "Add report"} to={`/rooms/${roomId}/tests`} icon={FlaskConical} />
-        <TestReportTable locale={locale} />
+        <TestReportsPanel companies={roomCompanies} locale={locale} roomId={roomId} />
       </section>
     );
   }
@@ -778,7 +830,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
   }
 
   if (tab === "vault") {
-    return <VaultPanel locale={locale} />;
+    return <VaultPanel locale={locale} roomId={roomId} />;
   }
 
   if (tab === "settings") {
@@ -1229,16 +1281,145 @@ function ProgressMatrix({ locale }: { locale: Locale }) {
   );
 }
 
-function TestReportTable({ locale, compact = false }: { locale: Locale; compact?: boolean }) {
+function TestReportsPanel({ companies: rows, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
+  const [message, setMessage] = useState<string | null>(null);
+  const [reports, setReports] = useState<TestReportDisplay[]>(roomId === "demo-room" ? sampleTestReports : []);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadReports = useCallback(async () => {
+    if (roomId === "demo-room") {
+      setReports(sampleTestReports);
+      return;
+    }
+    if (!rows.length) {
+      setReports([]);
+      return;
+    }
+    setLoading(true);
+    setMessage(null);
+    try {
+      const grouped = await Promise.all(
+        rows.map(async (company) => {
+          const response = await listTestReports(roomId, company.id);
+          return response.testReports.map((report) => mapApiTestReport(report, company));
+        }),
+      );
+      setReports(grouped.flat().sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt)));
+    } catch (error) {
+      setReports([]);
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "レポートを取得できませんでした" : "Could not load reports");
+    } finally {
+      setLoading(false);
+    }
+  }, [locale, roomId, rows]);
+
+  useEffect(() => {
+    void loadReports();
+  }, [loadReports]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const companyId = readFormText(data, "companyId");
+    if (!companyId) {
+      setMessage(locale === "ja" ? "企業を選択してください。" : "Select a company.");
+      return;
+    }
+    if (roomId === "demo-room") {
+      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save reports.");
+      return;
+    }
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      await createTestReport(roomId, {
+        companyId,
+        notes: readFormText(data, "notes"),
+        source: readFormText(data, "source"),
+        testTypeId: readFormText(data, "testTypeId"),
+        visibility: readVisibility(data),
+      });
+      form.reset();
+      await loadReports();
+      setMessage(locale === "ja" ? "レポートを保存しました。" : "Report saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "保存できませんでした" : "Could not save report");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="test-report-panel">
+      <form className="test-report-form" onSubmit={handleSubmit}>
+        <label>
+          {locale === "ja" ? "企業" : "Company"}
+          <select name="companyId" required>
+            <option value="">{locale === "ja" ? "選択" : "Select"}</option>
+            {rows.map((company) => (
+              <option key={company.id} value={company.id}>
+                {text(company.name, locale)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {locale === "ja" ? "検査種別" : "Test type"}
+          <input name="testTypeId" placeholder={locale === "ja" ? "SPI / TG-WEB / 玉手箱" : "SPI / TG-WEB / CUBIC"} />
+        </label>
+        <label>
+          {locale === "ja" ? "出典" : "Source"}
+          <input name="source" placeholder={locale === "ja" ? "共有メモ、先輩レポートなど" : "Room note, past candidate"} />
+        </label>
+        <label>
+          {locale === "ja" ? "公開範囲" : "Visibility"}
+          <select name="visibility" defaultValue="room">
+            <option value="room">{locale === "ja" ? "ルーム共有" : "Room"}</option>
+            <option value="private">{locale === "ja" ? "自分だけ" : "Private"}</option>
+          </select>
+        </label>
+        <label className="span-2">
+          {locale === "ja" ? "メモ" : "Notes"}
+          <textarea name="notes" placeholder={locale === "ja" ? "問題傾向、時間配分、準備メモ" : "Question style, timing, prep note"} rows={3} />
+        </label>
+        <button className="secondary-action" type="submit" disabled={submitting || !rows.length}>
+          <Plus size={16} aria-hidden="true" />
+          <span>{submitting ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "保存" : "Save"}</span>
+        </button>
+      </form>
+      {message ? <p className={isPositiveMessage(message) ? "form-status success" : "form-status"}>{message}</p> : null}
+      {loading ? <p className="form-status">{locale === "ja" ? "読み込み中..." : "Loading..."}</p> : null}
+      <TestReportTable locale={locale} reports={reports} />
+    </div>
+  );
+}
+
+function TestReportTable({
+  locale,
+  compact = false,
+  reports = sampleTestReports,
+}: {
+  locale: Locale;
+  compact?: boolean;
+  reports?: TestReportDisplay[];
+}) {
+  if (!reports.length) {
+    return <p className="form-status">{locale === "ja" ? "まだレポートはありません。" : "No reports yet."}</p>;
+  }
   return (
     <div className={compact ? "compact-list" : "data-table report-table"} role="table" aria-label={locale === "ja" ? "適性検査レポート" : "Test reports"}>
-      {testReports.map((report) => (
-        <div className={compact ? "compact-row" : "table-row"} key={`${report.company.id}-${report.type}`}>
+      {reports.map((report) => (
+        <div className={compact ? "compact-row" : "table-row"} key={report.id}>
           <span>
             <strong>{text(report.company.name, locale)}</strong>
-            <small>{text(report.source, locale)}</small>
+            <small>{[text(report.source, locale), visibilityLabel(report.visibility, locale)].join(" / ")}</small>
           </span>
-          <span>{report.type}</span>
+          <span>
+            <strong>{report.type}</strong>
+            {!compact && report.notes ? <small>{report.notes}</small> : null}
+          </span>
           {!compact ? <span>{text(report.updated, locale)}</span> : null}
         </div>
       ))}
@@ -1246,7 +1427,91 @@ function TestReportTable({ locale, compact = false }: { locale: Locale; compact?
   );
 }
 
-function VaultPanel({ locale }: { locale: Locale }) {
+function VaultPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
+  const [credentialItems, setCredentialItems] = useState<ApiVaultItem[]>([]);
+  const [decryptedItems, setDecryptedItems] = useState<Record<string, VaultPlainPayload>>({});
+  const [message, setMessage] = useState<string | null>(null);
+  const [passphrase, setPassphrase] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [unlockingId, setUnlockingId] = useState<string | null>(null);
+
+  const loadVaultItems = useCallback(async () => {
+    if (roomId === "demo-room") {
+      setCredentialItems([]);
+      return;
+    }
+    try {
+      const response = await listVaultItems(roomId);
+      setCredentialItems(response.credentialItems);
+    } catch (error) {
+      setCredentialItems([]);
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "金庫を取得できませんでした" : "Could not load vault");
+    }
+  }, [locale, roomId]);
+
+  useEffect(() => {
+    void loadVaultItems();
+  }, [loadVaultItems]);
+
+  const handleSave = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const label = readFormText(data, "label");
+    const content = readFormText(data, "content");
+    if (!label || !content) {
+      setMessage(locale === "ja" ? "ラベルと保存内容を入力してください。" : "Enter a label and content.");
+      return;
+    }
+    if (passphrase.length < 8) {
+      setMessage(locale === "ja" ? "金庫パスフレーズは8文字以上にしてください。" : "Use at least 8 characters for the vault passphrase.");
+      return;
+    }
+    if (roomId === "demo-room") {
+      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save vault items.");
+      return;
+    }
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      const plain: VaultPlainPayload = {
+        version: 1,
+        label,
+        content,
+        savedAt: new Date().toISOString(),
+      };
+      const encrypted = await encryptVaultText(JSON.stringify(plain), passphrase);
+      await createVaultItem(roomId, { encryptedPayload: JSON.stringify(encrypted) });
+      form.reset();
+      setMessage(locale === "ja" ? "暗号化して保存しました。" : "Encrypted and saved.");
+      await loadVaultItems();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "保存できませんでした" : "Could not save item");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const unlockItem = async (item: ApiVaultItem) => {
+    if (!passphrase) {
+      setMessage(locale === "ja" ? "金庫パスフレーズを入力してください。" : "Enter the vault passphrase.");
+      return;
+    }
+    setUnlockingId(item.id);
+    setMessage(null);
+    try {
+      const encrypted = parseEncryptedVaultPayload(item.encrypted_payload);
+      const plainText = await decryptVaultText(encrypted, passphrase);
+      const plain = parseVaultPlainPayload(plainText);
+      setDecryptedItems((current) => ({ ...current, [item.id]: plain }));
+      setMessage(locale === "ja" ? "復号しました。" : "Unlocked.");
+    } catch {
+      setMessage(locale === "ja" ? "復号できませんでした。パスフレーズを確認してください。" : "Could not unlock. Check the passphrase.");
+    } finally {
+      setUnlockingId(null);
+    }
+  };
+
   return (
     <section className="detail-layout">
       <div className="surface detail-main vault-panel">
@@ -1260,32 +1525,65 @@ function VaultPanel({ locale }: { locale: Locale }) {
           </div>
         </div>
         <div className="vault-grid">
-          <DetailItem label={locale === "ja" ? "保存項目" : "Items"} value="7" />
-          <DetailItem label={locale === "ja" ? "関連企業" : "Linked companies"} value="3" />
+          <DetailItem label={locale === "ja" ? "保存項目" : "Items"} value={`${credentialItems.length}`} />
+          <DetailItem label={locale === "ja" ? "復号済み" : "Unlocked"} value={`${Object.keys(decryptedItems).length}`} />
           <DetailItem label={locale === "ja" ? "共有" : "Sharing"} value={locale === "ja" ? "なし" : "Off"} />
         </div>
-        <form className="inline-vault-form">
+        <form className="inline-vault-form vault-form" onSubmit={handleSave}>
+          <label>
+            {locale === "ja" ? "金庫パスフレーズ" : "Vault passphrase"}
+            <input
+              autoComplete="new-password"
+              onChange={(event) => setPassphrase(event.target.value)}
+              placeholder={locale === "ja" ? "このブラウザで暗号化に使用" : "Used in this browser only"}
+              type="password"
+              value={passphrase}
+            />
+          </label>
           <label>
             {locale === "ja" ? "ラベル" : "Label"}
-            <input placeholder={locale === "ja" ? "ソニー MyPage" : "Sony mypage"} />
+            <input name="label" placeholder={locale === "ja" ? "ソニー MyPage" : "Sony mypage"} />
           </label>
-          <label>
+          <label className="span-2">
             {locale === "ja" ? "保存内容" : "Saved content"}
-            <input placeholder={locale === "ja" ? "ID、メモ、確認事項など" : "ID, note, checklist"} />
+            <textarea name="content" placeholder={locale === "ja" ? "ID、メモ、確認事項など" : "ID, note, checklist"} rows={4} />
           </label>
-          <button className="primary-action" type="button">
+          <button className="primary-action" type="submit" disabled={submitting}>
             <LockKeyhole size={17} aria-hidden="true" />
-            <span>{locale === "ja" ? "保存" : "Save"}</span>
+            <span>{submitting ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "保存" : "Save"}</span>
           </button>
         </form>
+        {message ? <p className={isPositiveMessage(message) ? "form-status success" : "form-status"}>{message}</p> : null}
+        <div className="vault-item-list">
+          {credentialItems.length ? (
+            credentialItems.map((item) => {
+              const plain = decryptedItems[item.id];
+              return (
+                <div className="vault-item-row" key={item.id}>
+                  <span>
+                    <strong>{plain?.label ?? (locale === "ja" ? "暗号化済み項目" : "Encrypted item")}</strong>
+                    <small>{formatDateTimeLabel(item.updated_at, locale)}</small>
+                  </span>
+                  {plain ? <p>{plain.content}</p> : null}
+                  <button className="secondary-action" type="button" onClick={() => void unlockItem(item)} disabled={unlockingId === item.id}>
+                    <LockKeyhole size={15} aria-hidden="true" />
+                    <span>{unlockingId === item.id ? (locale === "ja" ? "確認中" : "Checking") : locale === "ja" ? "復号" : "Unlock"}</span>
+                  </button>
+                </div>
+              );
+            })
+          ) : (
+            <p className="form-status">{locale === "ja" ? "まだ保存項目はありません。" : "No saved items yet."}</p>
+          )}
+        </div>
       </div>
       <aside className="right-rail">
         <div className="surface setup-notes">
           <h2>{locale === "ja" ? "非公開の扱い" : "Private handling"}</h2>
           <p>
             {locale === "ja"
-              ? "内容は本人だけが扱う前提です。共有ルームに企業情報を出しても、金庫の中身は混ざりません。"
-              : "Vault items stay personal even when company records are shared in a room."}
+              ? "パスフレーズはブラウザ内で鍵を作るためだけに使い、Workerへ送信しません。共有ルームに企業情報を出しても、金庫の中身は本人の暗号文として分離されます。"
+              : "The passphrase is used only in the browser to derive the key. The Worker stores encrypted JSON, and Vault items stay personal even in shared rooms."}
           </p>
         </div>
       </aside>
@@ -1523,9 +1821,40 @@ function formatCatalogTicker(company: CatalogCompany): string | null {
   return company.exchange ? `${company.exchange}:${company.ticker}` : company.ticker;
 }
 
+function mapApiTestReport(report: ApiTestReport, company: Company): TestReportDisplay {
+  return {
+    id: report.id,
+    company,
+    notes: report.notes ?? "",
+    source: { ja: report.source ?? "手入力", en: report.source ?? "Manual" },
+    type: report.test_type_id ?? "N/A",
+    updated: {
+      ja: formatDateTimeLabel(report.updated_at, "ja"),
+      en: formatDateTimeLabel(report.updated_at, "en"),
+    },
+    updatedAt: report.updated_at,
+    visibility: report.visibility,
+  };
+}
+
 function readFormText(data: FormData, key: string): string | undefined {
   const value = data.get(key);
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readVisibility(data: FormData): "room" | "private" {
+  return data.get("visibility") === "private" ? "private" : "room";
+}
+
+function visibilityLabel(visibility: "room" | "private", locale: Locale): string {
+  if (visibility === "private") {
+    return locale === "ja" ? "自分だけ" : "Private";
+  }
+  return locale === "ja" ? "ルーム共有" : "Room";
+}
+
+function isPositiveMessage(message: string): boolean {
+  return ["追加", "保存", "復号", "Added", "saved", "Saved", "Unlocked"].some((word) => message.includes(word));
 }
 
 function deadlineSortValue(dateIso: string | null): number {
@@ -1566,6 +1895,15 @@ function deadlineDateLabel(dateIso: string, locale: Locale): string {
   }).format(new Date(dateIso));
 }
 
+function formatDateTimeLabel(dateIso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : "en-US", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(dateIso));
+}
+
 function deadlineTone(dateIso: string | null): "danger" | "warning" | "calm" | "" {
   if (!dateIso) {
     return "";
@@ -1595,6 +1933,34 @@ function initialsFor(name: string): string {
 
 function text(value: LocalText, locale: Locale): string {
   return value[locale];
+}
+
+function parseEncryptedVaultPayload(value: string): EncryptedVaultPayload {
+  const parsed = JSON.parse(value) as Partial<EncryptedVaultPayload>;
+  if (
+    parsed.version !== 1 ||
+    parsed.kdf !== "PBKDF2-SHA-256" ||
+    typeof parsed.iterations !== "number" ||
+    typeof parsed.salt !== "string" ||
+    typeof parsed.iv !== "string" ||
+    typeof parsed.ciphertext !== "string"
+  ) {
+    throw new Error("Invalid vault payload");
+  }
+  return parsed as EncryptedVaultPayload;
+}
+
+function parseVaultPlainPayload(value: string): VaultPlainPayload {
+  const parsed = JSON.parse(value) as Partial<VaultPlainPayload>;
+  if (parsed.version !== 1 || typeof parsed.label !== "string" || typeof parsed.content !== "string") {
+    throw new Error("Invalid vault content");
+  }
+  return {
+    version: 1,
+    label: parsed.label,
+    content: parsed.content,
+    savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : "",
+  };
 }
 
 function readInitialLocale(): Locale {
