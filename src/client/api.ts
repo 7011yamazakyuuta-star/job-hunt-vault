@@ -145,6 +145,54 @@ export type ApplicationCreateInput = {
 
 export type ApplicationPatchInput = Omit<Partial<ApplicationCreateInput>, "companyId">;
 
+export type ApiEvent = {
+  id: string;
+  company_id: string | null;
+  application_id: string | null;
+  user_id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string | null;
+  visibility: "room" | "private";
+  kind: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApiTask = {
+  id: string;
+  company_id: string | null;
+  application_id: string | null;
+  user_id: string;
+  title: string;
+  due_at: string | null;
+  status: string;
+  visibility: "room" | "private";
+  created_at: string;
+  updated_at: string;
+};
+
+export type EventCreateInput = {
+  companyId?: string;
+  applicationId?: string;
+  title: string;
+  startsAt: string;
+  endsAt?: string;
+  visibility: "room" | "private";
+  kind?: string;
+  notesEncrypted?: string;
+};
+
+export type TaskCreateInput = {
+  companyId?: string;
+  applicationId?: string;
+  title: string;
+  dueAt?: string;
+  status?: string;
+  visibility: "room" | "private";
+  notesEncrypted?: string;
+};
+
 export async function getMe(): Promise<{ user: ApiUser | null }> {
   return apiGet("/api/me");
 }
@@ -254,6 +302,22 @@ export async function updateApplication(
     `/api/rooms/${encodeURIComponent(roomId)}/applications/${encodeURIComponent(applicationId)}`,
     input,
   );
+}
+
+export async function listEvents(roomId: string): Promise<{ events: ApiEvent[] }> {
+  return apiGet(`/api/rooms/${encodeURIComponent(roomId)}/events`);
+}
+
+export async function createEvent(roomId: string, input: EventCreateInput): Promise<{ eventId: string }> {
+  return apiPost(`/api/rooms/${encodeURIComponent(roomId)}/events`, input);
+}
+
+export async function listTasks(roomId: string): Promise<{ tasks: ApiTask[] }> {
+  return apiGet(`/api/rooms/${encodeURIComponent(roomId)}/tasks`);
+}
+
+export async function createTask(roomId: string, input: TaskCreateInput): Promise<{ taskId: string }> {
+  return apiPost(`/api/rooms/${encodeURIComponent(roomId)}/tasks`, input);
 }
 
 async function apiGet<T>(path: string): Promise<T> {

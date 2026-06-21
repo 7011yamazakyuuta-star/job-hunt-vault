@@ -878,6 +878,63 @@ a {
   font-weight: 850;
 }
 
+.schedule-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.schedule-forms {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.schedule-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+  border: 1px solid #e3e8e3;
+  border-radius: 8px;
+  background: #fbfcfa;
+  padding: 12px;
+}
+
+.schedule-form > strong {
+  grid-column: 1 / -1;
+  color: #24302b;
+}
+
+.schedule-list {
+  display: grid;
+  gap: 8px;
+}
+
+.schedule-row {
+  display: grid;
+  grid-template-columns: 126px minmax(0, 1fr) 62px;
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+  border: 1px solid #e3e8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 9px 11px;
+}
+
+.schedule-row time,
+.schedule-row b {
+  color: #4f5a55;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.schedule-row span {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
 .vault-summary {
   display: flex;
   align-items: center;
@@ -906,6 +963,7 @@ a {
 .form-panel label,
 .inline-vault-form label,
 .progress-form label,
+.schedule-form label,
 .test-report-form label {
   display: grid;
   gap: 7px;
@@ -919,6 +977,8 @@ a {
 .inline-vault-form textarea,
 .progress-form input,
 .progress-form select,
+.schedule-form input,
+.schedule-form select,
 .test-report-form input,
 .test-report-form select,
 .test-report-form textarea {
@@ -943,6 +1003,8 @@ a {
 .inline-vault-form textarea:focus,
 .progress-form input:focus,
 .progress-form select:focus,
+.schedule-form input:focus,
+.schedule-form select:focus,
 .test-report-form input:focus,
 .test-report-form select:focus,
 .test-report-form textarea:focus {
@@ -1363,6 +1425,10 @@ a {
   .progress-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .schedule-forms {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1457,6 +1523,11 @@ a {
   }
 
   .progress-form {
+    grid-template-columns: 1fr;
+  }
+
+  .schedule-form,
+  .schedule-row {
     grid-template-columns: 1fr;
   }
 

@@ -25,9 +25,11 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-rout
 import {
   createApplication,
   createCompany,
+  createEvent,
   createPersonalRoom,
   createSharedRoom,
   createTestReport,
+  createTask,
   createVaultItem,
   getHealth,
   getMe,
@@ -36,13 +38,17 @@ import {
   listRoomCompanies,
   listProgress,
   listTestReports,
+  listEvents,
+  listTasks,
   listVaultItems,
   searchCompanyCatalog,
   searchLogoCandidates,
   type ApiCompany,
   type ApiApplication,
   type ApiRoomListItem,
+  type ApiEvent,
   type ApiTestReport,
+  type ApiTask,
   type ApiUser,
   type ApiVaultItem,
   type CatalogCompany,
@@ -836,8 +842,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
     return (
       <section className="surface calendar-surface">
         <PanelHeader title={locale === "ja" ? "日程" : "Calendar"} actionLabel={locale === "ja" ? "予定追加" : "New event"} to={`/rooms/${roomId}/calendar`} icon={CalendarDays} />
-        <DeadlineCalendar companies={roomCompanies} locale={locale} roomId={roomId} large />
-        <Timeline locale={locale} />
+        <SchedulePanel companies={roomCompanies} locale={locale} roomId={roomId} />
       </section>
     );
   }
@@ -1207,6 +1212,253 @@ function DeadlineStrip({ companies, locale, roomId }: { companies: Company[]; lo
         ))}
       </div>
     </section>
+  );
+}
+
+function SchedulePanel({ companies: rows, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
+  const [events, setEvents] = useState<ApiEvent[]>([]);
+  const [tasks, setTasks] = useState<ApiTask[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [submittingEvent, setSubmittingEvent] = useState(false);
+  const [submittingTask, setSubmittingTask] = useState(false);
+
+  const loadSchedule = useCallback(async () => {
+    if (roomId === "demo-room") {
+      setEvents([]);
+      setTasks([]);
+      return;
+    }
+    setLoading(true);
+    setMessage(null);
+    try {
+      const [eventResponse, taskResponse] = await Promise.all([listEvents(roomId), listTasks(roomId)]);
+      setEvents(eventResponse.events);
+      setTasks(taskResponse.tasks);
+    } catch (error) {
+      setEvents([]);
+      setTasks([]);
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "日程を取得できませんでした" : "Could not load schedule");
+    } finally {
+      setLoading(false);
+    }
+  }, [locale, roomId]);
+
+  useEffect(() => {
+    void loadSchedule();
+  }, [loadSchedule]);
+
+  const handleEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const title = readFormText(data, "title");
+    const startsAt = dateTimeLocalToIso(readFormText(data, "startsAt"));
+    if (!title || !startsAt) {
+      setMessage(locale === "ja" ? "予定名と開始日時を入力してください。" : "Enter an event title and start time.");
+      return;
+    }
+    if (roomId === "demo-room") {
+      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save events.");
+      return;
+    }
+    setSubmittingEvent(true);
+    setMessage(null);
+    try {
+      await createEvent(roomId, {
+        companyId: readFormText(data, "companyId"),
+        endsAt: dateTimeLocalToIso(readFormText(data, "endsAt")),
+        kind: readFormText(data, "kind") ?? "event",
+        startsAt,
+        title,
+        visibility: readVisibility(data),
+      });
+      form.reset();
+      await loadSchedule();
+      setMessage(locale === "ja" ? "予定を保存しました。" : "Event saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "予定を保存できませんでした" : "Could not save event");
+    } finally {
+      setSubmittingEvent(false);
+    }
+  };
+
+  const handleTaskSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const title = readFormText(data, "title");
+    if (!title) {
+      setMessage(locale === "ja" ? "TODO名を入力してください。" : "Enter a task title.");
+      return;
+    }
+    if (roomId === "demo-room") {
+      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save tasks.");
+      return;
+    }
+    setSubmittingTask(true);
+    setMessage(null);
+    try {
+      await createTask(roomId, {
+        companyId: readFormText(data, "companyId"),
+        dueAt: dateTimeLocalToIso(readFormText(data, "dueAt")),
+        status: readFormText(data, "status") ?? "open",
+        title,
+        visibility: readVisibility(data),
+      });
+      form.reset();
+      await loadSchedule();
+      setMessage(locale === "ja" ? "TODOを保存しました。" : "Task saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "TODOを保存できませんでした" : "Could not save task");
+    } finally {
+      setSubmittingTask(false);
+    }
+  };
+
+  return (
+    <div className="schedule-panel">
+      <DeadlineCalendar companies={rows} locale={locale} roomId={roomId} large />
+      <div className="schedule-forms">
+        <form className="schedule-form" onSubmit={handleEventSubmit}>
+          <strong>{locale === "ja" ? "予定" : "Event"}</strong>
+          <label>
+            {locale === "ja" ? "予定名" : "Title"}
+            <input name="title" placeholder={locale === "ja" ? "一次面接 / ES締切確認" : "First interview / ES check"} required />
+          </label>
+          <label>
+            {locale === "ja" ? "関連企業" : "Company"}
+            <select name="companyId">
+              <option value="">{locale === "ja" ? "なし" : "None"}</option>
+              {rows.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {text(company.name, locale)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {locale === "ja" ? "開始" : "Starts"}
+            <input name="startsAt" required type="datetime-local" />
+          </label>
+          <label>
+            {locale === "ja" ? "終了" : "Ends"}
+            <input name="endsAt" type="datetime-local" />
+          </label>
+          <label>
+            {locale === "ja" ? "公開範囲" : "Visibility"}
+            <select name="visibility" defaultValue="room">
+              <option value="room">{locale === "ja" ? "ルーム共有" : "Room"}</option>
+              <option value="private">{locale === "ja" ? "自分だけ" : "Private"}</option>
+            </select>
+          </label>
+          <input name="kind" type="hidden" value="event" />
+          <button className="secondary-action" type="submit" disabled={submittingEvent}>
+            <Plus size={16} aria-hidden="true" />
+            <span>{submittingEvent ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "予定を保存" : "Save event"}</span>
+          </button>
+        </form>
+        <form className="schedule-form" onSubmit={handleTaskSubmit}>
+          <strong>{locale === "ja" ? "TODO" : "Task"}</strong>
+          <label>
+            {locale === "ja" ? "TODO名" : "Title"}
+            <input name="title" placeholder={locale === "ja" ? "逆質問を整理 / MyPage確認" : "Prepare questions / Check MyPage"} required />
+          </label>
+          <label>
+            {locale === "ja" ? "関連企業" : "Company"}
+            <select name="companyId">
+              <option value="">{locale === "ja" ? "なし" : "None"}</option>
+              {rows.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {text(company.name, locale)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            {locale === "ja" ? "期限" : "Due"}
+            <input name="dueAt" type="datetime-local" />
+          </label>
+          <label>
+            {locale === "ja" ? "状態" : "Status"}
+            <select name="status" defaultValue="open">
+              <option value="open">{locale === "ja" ? "未完了" : "Open"}</option>
+              <option value="done">{locale === "ja" ? "完了" : "Done"}</option>
+            </select>
+          </label>
+          <label>
+            {locale === "ja" ? "公開範囲" : "Visibility"}
+            <select name="visibility" defaultValue="room">
+              <option value="room">{locale === "ja" ? "ルーム共有" : "Room"}</option>
+              <option value="private">{locale === "ja" ? "自分だけ" : "Private"}</option>
+            </select>
+          </label>
+          <button className="secondary-action" type="submit" disabled={submittingTask}>
+            <Plus size={16} aria-hidden="true" />
+            <span>{submittingTask ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "TODOを保存" : "Save task"}</span>
+          </button>
+        </form>
+      </div>
+      {message ? <p className={isPositiveMessage(message) ? "form-status success" : "form-status"}>{message}</p> : null}
+      {loading ? <p className="form-status">{locale === "ja" ? "読み込み中..." : "Loading..."}</p> : null}
+      <ScheduleItemList companies={rows} events={events} locale={locale} sample={roomId === "demo-room"} tasks={tasks} />
+    </div>
+  );
+}
+
+function ScheduleItemList({
+  companies: rows,
+  events,
+  locale,
+  sample,
+  tasks,
+}: {
+  companies: Company[];
+  events: ApiEvent[];
+  locale: Locale;
+  sample: boolean;
+  tasks: ApiTask[];
+}) {
+  if (sample) {
+    return <Timeline locale={locale} />;
+  }
+
+  const items = [
+    ...events.map((event) => ({
+      companyId: event.company_id,
+      id: event.id,
+      kind: locale === "ja" ? "予定" : "Event",
+      meta: [event.kind, visibilityLabel(event.visibility, locale)].filter(Boolean).join(" / "),
+      time: event.starts_at,
+      title: event.title,
+    })),
+    ...tasks.map((task) => ({
+      companyId: task.company_id,
+      id: task.id,
+      kind: locale === "ja" ? "TODO" : "Task",
+      meta: [taskStatusLabel(task.status, locale), visibilityLabel(task.visibility, locale)].join(" / "),
+      time: task.due_at,
+      title: task.title,
+    })),
+  ].sort((a, b) => scheduleSortValue(a.time) - scheduleSortValue(b.time));
+
+  if (!items.length) {
+    return <p className="form-status">{locale === "ja" ? "まだ保存済みの予定やTODOはありません。" : "No saved events or tasks yet."}</p>;
+  }
+
+  return (
+    <div className="schedule-list">
+      {items.map((item) => (
+        <div className="schedule-row" key={`${item.kind}-${item.id}`}>
+          <time>{item.time ? formatDateTimeLabel(item.time, locale) : locale === "ja" ? "期限なし" : "No due date"}</time>
+          <span>
+            <strong>{item.title}</strong>
+            <small>{[findCompanyName(rows, item.companyId, locale), item.meta].filter(Boolean).join(" / ")}</small>
+          </span>
+          <b>{item.kind}</b>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -2037,6 +2289,36 @@ function applicationStatusLabel(status: string, locale: Locale): string {
 
 function progressStepIndex(status: string): number {
   return applicationStatusOptions.find((item) => item.value === status)?.stepIndex ?? 0;
+}
+
+function taskStatusLabel(status: string, locale: Locale): string {
+  if (status === "done") {
+    return locale === "ja" ? "完了" : "Done";
+  }
+  if (status === "open") {
+    return locale === "ja" ? "未完了" : "Open";
+  }
+  return status;
+}
+
+function dateTimeLocalToIso(value: string | undefined): string | undefined {
+  if (!value) {
+    return undefined;
+  }
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function scheduleSortValue(dateIso: string | null): number {
+  return dateIso ? Date.parse(dateIso) : Number.MAX_SAFE_INTEGER;
+}
+
+function findCompanyName(rows: Company[], companyId: string | null, locale: Locale): string | null {
+  if (!companyId) {
+    return null;
+  }
+  const company = rows.find((item) => item.id === companyId);
+  return company ? text(company.name, locale) : null;
 }
 
 function isPositiveMessage(message: string): boolean {

@@ -16,7 +16,7 @@ This repository is public. Do not commit real job-hunting data, account IDs, pas
 - R2 avatar binding skeleton with authenticated Worker delivery.
 - Zod-validated Hono API routes.
 - React + Vite app shell with required frontend routes.
-- D1-backed company intake, application progress, test report entry, and personal Vault item flows.
+- D1-backed company intake, application progress, calendar event, task, test report, and personal Vault item flows.
 - Browser-side Vault crypto using PBKDF2 + AES-GCM before the Worker receives the payload.
 - Optional Logo.dev resolver/search integration for company logos.
 - Step-by-step Cloudflare setup guide in `docs/CLOUDFLARE_SETUP.md`.
