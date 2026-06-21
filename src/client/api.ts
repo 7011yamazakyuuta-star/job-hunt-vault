@@ -193,6 +193,29 @@ export type TaskCreateInput = {
   notesEncrypted?: string;
 };
 
+export type ApiRoomMember = {
+  user_id: string;
+  display_name_in_room: string;
+  avatar_kind: "emoji" | "initials" | "photo";
+  avatar_emoji: string | null;
+  avatar_color: string | null;
+  avatar_thumb_r2_key: string | null;
+  role: "owner" | "member";
+  joined_at: string;
+};
+
+export type AvatarJsonInput =
+  | {
+      kind: "emoji";
+      emoji: string;
+      color?: string;
+    }
+  | {
+      kind: "initials";
+      initials: string;
+      color?: string;
+    };
+
 export async function getMe(): Promise<{ user: ApiUser | null }> {
   return apiGet("/api/me");
 }
@@ -320,6 +343,40 @@ export async function createTask(roomId: string, input: TaskCreateInput): Promis
   return apiPost(`/api/rooms/${encodeURIComponent(roomId)}/tasks`, input);
 }
 
+export async function listRoomMembers(roomId: string): Promise<{ members: ApiRoomMember[] }> {
+  return apiGet(`/api/rooms/${encodeURIComponent(roomId)}/members`);
+}
+
+export async function setRoomMemberAvatar(
+  roomId: string,
+  userId: string,
+  input: AvatarJsonInput,
+): Promise<{ avatarKind: "emoji" | "initials" }> {
+  return apiPut(`/api/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/avatar`, input);
+}
+
+export async function uploadRoomMemberAvatar(
+  roomId: string,
+  userId: string,
+  file: File,
+): Promise<{ avatarKind: "photo"; avatarUrl: string }> {
+  return apiRequest(`/api/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/avatar`, {
+    body: file,
+    headers: { "Content-Type": file.type },
+    method: "PUT",
+  });
+}
+
+export async function deleteRoomMemberAvatar(roomId: string, userId: string): Promise<{ ok: true }> {
+  return apiRequest(`/api/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/avatar`, {
+    method: "DELETE",
+  });
+}
+
+export function avatarPhotoUrl(roomId: string, userId: string): string {
+  return `/api/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/avatar`;
+}
+
 async function apiGet<T>(path: string): Promise<T> {
   return apiRequest(path);
 }
@@ -328,6 +385,13 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return apiRequest(path, {
     body: JSON.stringify(body),
     method: "POST",
+  });
+}
+
+async function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest(path, {
+    body: JSON.stringify(body),
+    method: "PUT",
   });
 }
 

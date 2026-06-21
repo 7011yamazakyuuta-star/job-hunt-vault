@@ -31,7 +31,7 @@ This first PR is a safe skeleton, not the completed product. It must include:
 - Personal room creation.
 - Shared room creation.
 - Room join.
-- Avatar selector/upload skeleton.
+- Avatar selector/upload UI.
 - Company CRUD.
 - Company catalog CSV-to-SQL import helper.
 - Selection step skeleton.

@@ -247,6 +247,10 @@ a {
   color: #2f3834;
 }
 
+.secondary-action.muted {
+  color: #66716c;
+}
+
 .primary-action:hover,
 .secondary-action:hover,
 .panel-header a:hover {
@@ -960,6 +964,7 @@ a {
   padding: 18px;
 }
 
+.avatar-form label,
 .form-panel label,
 .inline-vault-form label,
 .progress-form label,
@@ -972,6 +977,8 @@ a {
   font-weight: 850;
 }
 
+.avatar-form input,
+.avatar-form select,
 .form-panel input,
 .inline-vault-form input,
 .inline-vault-form textarea,
@@ -998,6 +1005,8 @@ a {
   resize: vertical;
 }
 
+.avatar-form input:focus,
+.avatar-form select:focus,
 .form-panel input:focus,
 .inline-vault-form input:focus,
 .inline-vault-form textarea:focus,
@@ -1070,6 +1079,80 @@ a {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
   gap: 10px;
+}
+
+.settings-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.avatar-settings {
+  display: grid;
+  gap: 14px;
+}
+
+.avatar-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.avatar-heading img,
+.avatar-preview {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 54px;
+  height: 54px;
+  border-radius: 8px;
+  background: #185b50;
+  color: #ffffff;
+  font-weight: 850;
+  object-fit: cover;
+}
+
+.avatar-preview.small {
+  width: 34px;
+  height: 34px;
+  font-size: 0.82rem;
+}
+
+.avatar-heading h2,
+.avatar-heading p {
+  margin: 0;
+}
+
+.avatar-heading p {
+  color: #66716c;
+  line-height: 1.55;
+}
+
+.avatar-form {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(130px, 0.7fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid #e3e8e3;
+  border-radius: 8px;
+  background: #fbfcfa;
+  padding: 12px;
+}
+
+.member-list {
+  display: grid;
+  gap: 8px;
+}
+
+.member-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 48px;
+  border: 1px solid #e3e8e3;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 7px 9px;
 }
 
 .detail-item {
@@ -1515,6 +1598,10 @@ a {
   }
 
   .company-intake-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .avatar-form {
     grid-template-columns: 1fr;
   }
 

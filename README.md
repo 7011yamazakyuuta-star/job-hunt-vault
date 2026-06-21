@@ -13,7 +13,7 @@ This repository is public. Do not commit real job-hunting data, account IDs, pas
 - Joined room listing for the app sidebar.
 - D1 schema and migration for users, sessions, rooms, members, companies, progress, events, tasks, vaults, logos, and audit logs.
 - Company catalog schema for JPX/manual/provider-backed reference data.
-- R2 avatar binding skeleton with authenticated Worker delivery.
+- R2 avatar member settings with authenticated Worker delivery.
 - Zod-validated Hono API routes.
 - React + Vite app shell with required frontend routes.
 - D1-backed company intake, application progress, calendar event, task, test report, and personal Vault item flows.

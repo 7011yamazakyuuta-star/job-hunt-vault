@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
+  avatarPhotoUrl,
   createApplication,
   createCompany,
   createEvent,
@@ -31,6 +32,7 @@ import {
   createTestReport,
   createTask,
   createVaultItem,
+  deleteRoomMemberAvatar,
   getHealth,
   getMe,
   joinRoom,
@@ -41,10 +43,13 @@ import {
   listEvents,
   listTasks,
   listVaultItems,
+  listRoomMembers,
   searchCompanyCatalog,
   searchLogoCandidates,
+  setRoomMemberAvatar,
   type ApiCompany,
   type ApiApplication,
+  type ApiRoomMember,
   type ApiRoomListItem,
   type ApiEvent,
   type ApiTestReport,
@@ -53,6 +58,7 @@ import {
   type ApiVaultItem,
   type CatalogCompany,
   type LogoSearchResult,
+  uploadRoomMemberAvatar,
 } from "./api";
 import { decryptVaultText, encryptVaultText, type EncryptedVaultPayload } from "./vaultCrypto";
 
@@ -852,7 +858,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
   }
 
   if (tab === "settings") {
-    return <SettingsPanel locale={locale} />;
+    return <SettingsPanel locale={locale} roomId={roomId} />;
   }
 
   return (
@@ -2020,14 +2026,184 @@ function VaultPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
   );
 }
 
-function SettingsPanel({ locale }: { locale: Locale }) {
+function SettingsPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
+  const [avatarVersion, setAvatarVersion] = useState(0);
+  const [members, setMembers] = useState<ApiRoomMember[]>([]);
+  const [message, setMessage] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [user, setUser] = useState<ApiUser | null>(null);
+
+  const loadSettings = useCallback(async () => {
+    if (roomId === "demo-room") {
+      setMembers([]);
+      return;
+    }
+    try {
+      const [meResponse, memberResponse] = await Promise.all([getMe(), listRoomMembers(roomId)]);
+      setUser(meResponse.user);
+      setMembers(memberResponse.members);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "設定を取得できませんでした" : "Could not load settings");
+    }
+  }, [locale, roomId]);
+
+  useEffect(() => {
+    void loadSettings();
+  }, [loadSettings]);
+
+  const currentMember = user ? members.find((member) => member.user_id === user.id) : null;
+  const previewUrl = currentMember?.avatar_kind === "photo" && user ? `${avatarPhotoUrl(roomId, user.id)}?v=${avatarVersion}` : null;
+
+  const handleInitialsSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) {
+      setMessage(locale === "ja" ? "ログイン後に設定できます。" : "Sign in to update your avatar.");
+      return;
+    }
+    if (roomId === "demo-room") {
+      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save avatar settings.");
+      return;
+    }
+    const data = new FormData(event.currentTarget);
+    const initials = readFormText(data, "initials") ?? initialsFor(user.name);
+    setSaving(true);
+    setMessage(null);
+    try {
+      await setRoomMemberAvatar(roomId, user.id, {
+        color: readFormText(data, "color") ?? "teal",
+        initials: initials.slice(0, 4),
+        kind: "initials",
+      });
+      await loadSettings();
+      setAvatarVersion((version) => version + 1);
+      setMessage(locale === "ja" ? "アバターを保存しました。" : "Avatar saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "保存できませんでした" : "Could not save avatar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handlePhotoSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!user) {
+      setMessage(locale === "ja" ? "ログイン後に設定できます。" : "Sign in to update your avatar.");
+      return;
+    }
+    if (roomId === "demo-room") {
+      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to upload an avatar.");
+      return;
+    }
+    const file = new FormData(event.currentTarget).get("photo");
+    if (!(file instanceof File) || !file.size) {
+      setMessage(locale === "ja" ? "画像を選択してください。" : "Choose an image.");
+      return;
+    }
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setMessage(locale === "ja" ? "JPEG / PNG / WebP を選択してください。" : "Choose JPEG, PNG, or WebP.");
+      return;
+    }
+    if (file.size > 1024 * 1024) {
+      setMessage(locale === "ja" ? "画像は1MB以下にしてください。" : "Keep the image under 1 MB.");
+      return;
+    }
+    setUploading(true);
+    setMessage(null);
+    try {
+      await uploadRoomMemberAvatar(roomId, user.id, file);
+      await loadSettings();
+      setAvatarVersion((version) => version + 1);
+      setMessage(locale === "ja" ? "画像を保存しました。" : "Photo saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "アップロードできませんでした" : "Could not upload photo");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDeletePhoto = async () => {
+    if (!user || roomId === "demo-room") {
+      setMessage(locale === "ja" ? "ルーム作成後に使えます。" : "Create or join a room first.");
+      return;
+    }
+    setSaving(true);
+    setMessage(null);
+    try {
+      await deleteRoomMemberAvatar(roomId, user.id);
+      await loadSettings();
+      setAvatarVersion((version) => version + 1);
+      setMessage(locale === "ja" ? "画像を削除しました。" : "Photo removed.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "削除できませんでした" : "Could not remove photo");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <section className="surface settings-grid">
-      <DetailItem label={locale === "ja" ? "ルーム種別" : "Room type"} value={locale === "ja" ? "共有" : "Shared"} />
-      <DetailItem label={locale === "ja" ? "参加方法" : "Join method"} value={locale === "ja" ? "コード + 合言葉" : "Room code + passphrase"} />
-      <DetailItem label={locale === "ja" ? "アバター保存" : "Avatar storage"} value="Private R2" />
-      <DetailItem label={locale === "ja" ? "秘密情報" : "Private keys"} value={locale === "ja" ? "管理画面で設定" : "Set in dashboard"} />
-      <DetailItem label={locale === "ja" ? "企業ロゴ" : "Company logos"} value={locale === "ja" ? "候補検索を使用" : "Search candidates"} />
+    <section className="settings-layout">
+      <div className="surface settings-grid">
+        <DetailItem label={locale === "ja" ? "ルーム種別" : "Room type"} value={locale === "ja" ? "共有" : "Shared"} />
+        <DetailItem label={locale === "ja" ? "参加方法" : "Join method"} value={locale === "ja" ? "コード + 合言葉" : "Room code + passphrase"} />
+        <DetailItem label={locale === "ja" ? "アバター保存" : "Avatar storage"} value="Private R2" />
+        <DetailItem label={locale === "ja" ? "秘密情報" : "Private keys"} value={locale === "ja" ? "管理画面で設定" : "Set in dashboard"} />
+        <DetailItem label={locale === "ja" ? "企業ロゴ" : "Company logos"} value={locale === "ja" ? "候補検索を使用" : "Search candidates"} />
+      </div>
+      <div className="surface avatar-settings">
+        <div className="avatar-heading">
+          {previewUrl ? <img alt="" src={previewUrl} /> : <span className="avatar-preview">{currentMember ? memberAvatarText(currentMember) : initialsFor(user?.name ?? "Me")}</span>}
+          <div>
+            <h2>{locale === "ja" ? "ルーム内アバター" : "Room avatar"}</h2>
+            <p>{locale === "ja" ? "写真はprivate R2に保存し、Workerの認可済みAPIだけで配信します。" : "Photos stay in private R2 and are served only through authorized Worker routes."}</p>
+          </div>
+        </div>
+        <form className="avatar-form" onSubmit={handleInitialsSubmit}>
+          <label>
+            {locale === "ja" ? "表示文字" : "Initials"}
+            <input defaultValue={currentMember ? memberAvatarText(currentMember) : initialsFor(user?.name ?? "Me")} maxLength={4} name="initials" />
+          </label>
+          <label>
+            {locale === "ja" ? "色" : "Color"}
+            <select defaultValue={currentMember?.avatar_color ?? "teal"} name="color">
+              <option value="teal">Teal</option>
+              <option value="indigo">Indigo</option>
+              <option value="amber">Amber</option>
+              <option value="rose">Rose</option>
+            </select>
+          </label>
+          <button className="secondary-action" type="submit" disabled={saving}>
+            <ShieldCheck size={16} aria-hidden="true" />
+            <span>{saving ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "文字で保存" : "Save initials"}</span>
+          </button>
+        </form>
+        <form className="avatar-form" onSubmit={handlePhotoSubmit}>
+          <label className="span-2">
+            {locale === "ja" ? "写真" : "Photo"}
+            <input accept="image/jpeg,image/png,image/webp" name="photo" type="file" />
+          </label>
+          <button className="secondary-action" type="submit" disabled={uploading}>
+            <Plus size={16} aria-hidden="true" />
+            <span>{uploading ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "画像を保存" : "Save photo"}</span>
+          </button>
+          <button className="secondary-action muted" type="button" onClick={() => void handleDeletePhoto()} disabled={saving || !currentMember}>
+            <LockKeyhole size={16} aria-hidden="true" />
+            <span>{locale === "ja" ? "画像を削除" : "Remove photo"}</span>
+          </button>
+        </form>
+        {message ? <p className={isPositiveMessage(message) ? "form-status success" : "form-status"}>{message}</p> : null}
+        <div className="member-list">
+          {members.map((member) => (
+            <div className="member-row" key={member.user_id}>
+              <span className="avatar-preview small">{memberAvatarText(member)}</span>
+              <span>
+                <strong>{member.display_name_in_room}</strong>
+                <small>{[member.role, member.avatar_kind].join(" / ")}</small>
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
@@ -2319,6 +2495,16 @@ function findCompanyName(rows: Company[], companyId: string | null, locale: Loca
   }
   const company = rows.find((item) => item.id === companyId);
   return company ? text(company.name, locale) : null;
+}
+
+function memberAvatarText(member: ApiRoomMember): string {
+  if (member.avatar_kind === "emoji" && member.avatar_emoji) {
+    return member.avatar_emoji;
+  }
+  if (member.avatar_kind === "initials" && member.avatar_emoji) {
+    return member.avatar_emoji;
+  }
+  return initialsFor(member.display_name_in_room);
 }
 
 function isPositiveMessage(message: string): boolean {
