@@ -53,6 +53,8 @@ export const avatarJsonSchema = z.discriminatedUnion("kind", [
 export const companyCreateSchema = z.object({
   name: z.string().trim().min(1).max(160),
   domain: z.string().trim().toLowerCase().max(255).optional(),
+  industry: z.string().trim().max(120).optional(),
+  priorityDeadlineAt: z.string().datetime().optional(),
   careerUrl: optionalUrl,
   mypageUrl: optionalUrl,
   logoUrl: optionalUrl,

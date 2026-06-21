@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS companies (
   room_id TEXT NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   domain TEXT,
+  industry TEXT,
+  priority_deadline_at TEXT,
   career_url TEXT,
   mypage_url TEXT,
   logo_url TEXT,
@@ -88,6 +90,29 @@ CREATE TABLE IF NOT EXISTS companies (
 );
 CREATE INDEX IF NOT EXISTS companies_room_idx ON companies(room_id);
 CREATE INDEX IF NOT EXISTS companies_room_name_idx ON companies(room_id, name);
+
+CREATE TABLE IF NOT EXISTS company_catalog (
+  id TEXT PRIMARY KEY,
+  source TEXT NOT NULL,
+  source_id TEXT,
+  country TEXT NOT NULL DEFAULT 'JP',
+  name TEXT NOT NULL,
+  name_kana TEXT,
+  normalized_name TEXT NOT NULL,
+  domain TEXT,
+  industry TEXT,
+  market TEXT,
+  ticker TEXT,
+  exchange TEXT,
+  logo_url TEXT,
+  metadata_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS company_catalog_normalized_name_idx ON company_catalog(normalized_name);
+CREATE INDEX IF NOT EXISTS company_catalog_ticker_idx ON company_catalog(ticker);
+CREATE INDEX IF NOT EXISTS company_catalog_domain_idx ON company_catalog(domain);
+CREATE INDEX IF NOT EXISTS company_catalog_industry_idx ON company_catalog(industry);
 
 CREATE TABLE IF NOT EXISTS test_types (
   id TEXT PRIMARY KEY,

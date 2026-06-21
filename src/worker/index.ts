@@ -11,6 +11,7 @@ import {
 } from "./auth";
 import { nowIso, randomId, randomTokenHex, timingSafeEqualText } from "./crypto";
 import { getOptionalNumber, jsonError, parseJson } from "./http";
+import { normalizeLogoDomain, resolveLogoForDomain, searchLogoCandidates } from "./logos";
 import { exchangeGoogleCodeForProfile, OAuthConfigError, OAuthVerificationError } from "./oauth";
 import { assertCompanyInRoom, hashRoomPassphrase, requireRoomMember, verifyRoomPassphrase } from "./rooms";
 import {
@@ -141,6 +142,7 @@ app.post("/api/logout", async (c) => {
 
 app.use("/api/rooms/*", requireUser);
 app.use("/api/logo/*", requireUser);
+app.use("/api/company-catalog/*", requireUser);
 
 app.post("/api/rooms/personal", async (c) => {
   const parsed = await parseJson(c, createPersonalRoomSchema);
@@ -462,10 +464,10 @@ app.get("/api/rooms/:roomId/companies", async (c) => {
     return membership.response;
   }
   const result = await c.env.DB.prepare(
-    `SELECT id, name, domain, career_url, mypage_url, logo_url, memo, created_at, updated_at
+    `SELECT id, name, domain, industry, priority_deadline_at, career_url, mypage_url, logo_url, memo, created_at, updated_at
      FROM companies
      WHERE room_id = ? AND deleted_at IS NULL
-     ORDER BY name ASC`,
+     ORDER BY priority_deadline_at IS NULL ASC, priority_deadline_at ASC, name ASC`,
   )
     .bind(roomId)
     .all();
@@ -487,14 +489,16 @@ app.post("/api/rooms/:roomId/companies", async (c) => {
   const id = randomId("company");
   await c.env.DB.prepare(
     `INSERT INTO companies
-      (id, room_id, name, domain, career_url, mypage_url, logo_url, logo_r2_key, memo, created_by_user_id, deleted_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?)`,
+      (id, room_id, name, domain, industry, priority_deadline_at, career_url, mypage_url, logo_url, logo_r2_key, memo, created_by_user_id, deleted_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?)`,
   )
     .bind(
       id,
       roomId,
       parsed.data.name,
       parsed.data.domain ?? null,
+      parsed.data.industry ?? null,
+      parsed.data.priorityDeadlineAt ?? null,
       parsed.data.careerUrl ?? null,
       parsed.data.mypageUrl ?? null,
       parsed.data.logoUrl ?? null,
@@ -516,7 +520,7 @@ app.get("/api/rooms/:roomId/companies/:companyId", async (c) => {
     return membership.response;
   }
   const company = await c.env.DB.prepare(
-    `SELECT id, name, domain, career_url, mypage_url, logo_url, memo, created_at, updated_at
+    `SELECT id, name, domain, industry, priority_deadline_at, career_url, mypage_url, logo_url, memo, created_at, updated_at
      FROM companies
      WHERE id = ? AND room_id = ? AND deleted_at IS NULL
      LIMIT 1`,
@@ -541,7 +545,7 @@ app.patch("/api/rooms/:roomId/companies/:companyId", async (c) => {
     return parsed.response;
   }
   const existing = await c.env.DB.prepare(
-    "SELECT name, domain, career_url, mypage_url, logo_url, memo FROM companies WHERE id = ? AND room_id = ? AND deleted_at IS NULL",
+    "SELECT name, domain, industry, priority_deadline_at, career_url, mypage_url, logo_url, memo FROM companies WHERE id = ? AND room_id = ? AND deleted_at IS NULL",
   )
     .bind(companyId, roomId)
     .first<CompanyRow>();
@@ -551,12 +555,14 @@ app.patch("/api/rooms/:roomId/companies/:companyId", async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE companies
-     SET name = ?, domain = ?, career_url = ?, mypage_url = ?, logo_url = ?, memo = ?, updated_at = ?
+     SET name = ?, domain = ?, industry = ?, priority_deadline_at = ?, career_url = ?, mypage_url = ?, logo_url = ?, memo = ?, updated_at = ?
      WHERE id = ? AND room_id = ?`,
   )
     .bind(
       parsed.data.name ?? existing.name,
       parsed.data.domain ?? existing.domain,
+      parsed.data.industry ?? existing.industry,
+      parsed.data.priorityDeadlineAt ?? existing.priority_deadline_at,
       parsed.data.careerUrl ?? existing.career_url,
       parsed.data.mypageUrl ?? existing.mypage_url,
       parsed.data.logoUrl ?? existing.logo_url,
@@ -918,19 +924,52 @@ app.post("/api/rooms/:roomId/vault/items", async (c) => {
 });
 
 app.get("/api/logo/resolve", async (c) => {
-  const domain = c.req.query("domain")?.trim().toLowerCase();
-  if (!domain || !/^[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain)) {
+  const domain = normalizeLogoDomain(c.req.query("domain") ?? "");
+  if (!domain) {
     return jsonError(c, 400, "Valid domain is required");
   }
-  const cached = await c.env.DB.prepare(
-    "SELECT domain, source, logo_url, r2_key, metadata_json, updated_at FROM logo_cache WHERE domain = ? LIMIT 1",
+  return c.json(await resolveLogoForDomain(c.env, c.env.DB, domain));
+});
+
+app.get("/api/logo/search", async (c) => {
+  const query = c.req.query("q")?.trim();
+  if (!query || query.length < 2 || query.length > 80) {
+    return jsonError(c, 400, "Search query must be between 2 and 80 characters");
+  }
+  const strategy = c.req.query("strategy") === "match" ? "match" : "suggest";
+  return c.json(await searchLogoCandidates(c.env, query, strategy));
+});
+
+app.get("/api/company-catalog/search", async (c) => {
+  const query = c.req.query("q")?.trim() ?? "";
+  if (query.length > 80) {
+    return jsonError(c, 400, "Search query must be 80 characters or fewer");
+  }
+  const industry = c.req.query("industry")?.trim();
+  const sort = c.req.query("sort");
+  const orderBy =
+    sort === "industry"
+      ? "industry IS NULL ASC, industry ASC, normalized_name ASC"
+      : sort === "ticker"
+        ? "ticker IS NULL ASC, ticker ASC, normalized_name ASC"
+        : "normalized_name ASC";
+  const normalizedQuery = normalizeCatalogSearchText(query);
+  const like = `%${normalizedQuery}%`;
+
+  const rows = await c.env.DB.prepare(
+    `SELECT id, source, source_id, country, name, name_kana, normalized_name, domain, industry, market, ticker, exchange, logo_url, updated_at
+     FROM company_catalog
+     WHERE (? = '' OR normalized_name LIKE ? OR LOWER(name) LIKE ? OR ticker LIKE ?)
+       AND (? IS NULL OR industry = ?)
+     ORDER BY ${orderBy}
+     LIMIT 50`,
   )
-    .bind(domain)
-    .first();
+    .bind(normalizedQuery, like, like, like, industry ?? null, industry ?? null)
+    .all();
+
   return c.json({
-    domain,
-    cached,
-    status: cached ? "cached" : "manual-or-provider-todo",
+    companies: rows.results ?? [],
+    status: rows.results?.length ? "ok" : "empty",
   });
 });
 
@@ -1061,6 +1100,10 @@ async function createEventOrTask(c: AppContext, kind: "event" | "task"): Promise
   return c.json({ taskId: id }, 201);
 }
 
+function normalizeCatalogSearchText(input: string): string {
+  return input.trim().toLowerCase().normalize("NFKC");
+}
+
 type JoinableRoomRow = {
   id: string;
   name: string;
@@ -1073,6 +1116,8 @@ type JoinableRoomRow = {
 type CompanyRow = {
   name: string;
   domain: string | null;
+  industry: string | null;
+  priority_deadline_at: string | null;
   career_url: string | null;
   mypage_url: string | null;
   logo_url: string | null;

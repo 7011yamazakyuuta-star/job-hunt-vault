@@ -183,7 +183,8 @@ npx wrangler secret put SESSION_SECRET
 
 ```bash
 npx wrangler secret put TURNSTILE_SECRET_KEY
-npx wrangler secret put LOGO_PROVIDER_API_KEY
+npx wrangler secret put LOGO_DEV_SECRET_KEY
+npx wrangler secret put LOGO_DEV_PUBLISHABLE_KEY
 ```
 
 `SESSION_SECRET` は長くランダムな文字列にしてください。ローカルで生成する例:
@@ -349,3 +350,47 @@ R2 bucket が作成済みで、binding 名が `AVATAR_BUCKET` のままか確認
 - secret をPR説明やIssueに貼っていない。
 - secret をこのチャットに貼っていない。
 - R2 bucket を public にしていない。
+## 13. 企業辞書とロゴ取得を使う場合
+
+企業ロゴをWordのオンライン画像検索に近い感覚で使う場合は、Logo.devなどのprovider keyをCloudflareに登録します。
+
+Cloudflareで触る場所:
+
+1. Cloudflare Dashboardを開く
+2. Workers & Pages
+3. `job-hunt-vault`
+4. Settings
+5. Variables and Secrets
+6. Add
+
+登録するもの:
+
+```bash
+npx wrangler secret put LOGO_DEV_SECRET_KEY
+npx wrangler secret put LOGO_DEV_PUBLISHABLE_KEY
+```
+
+`LOGO_DEV_SECRET_KEY` は企業名検索API用です。チャット、GitHub、`.env`、`.dev.vars` に貼らないでください。
+
+`LOGO_DEV_PUBLISHABLE_KEY` は画像CDN用のpublishable keyです。公開可能keyですが、運用を単純にするためCloudflare側に置いてください。
+
+このチャットでCodexに伝えてよいこと:
+
+```text
+Logo.dev の LOGO_DEV_SECRET_KEY と LOGO_DEV_PUBLISHABLE_KEY を登録済みです。
+```
+
+伝えないこと:
+
+- keyの実際の値
+- Logo.dev dashboardのprivate token
+- `.env`
+- `.dev.vars`
+
+JPXなどの企業辞書を入れる場合は、まずD1 databaseを作成してmigrationを適用します。その後、公式データを `company_catalog` にimportします。詳細な設計は `docs/DATA_CATALOG.md` を見てください。
+
+この段階でCodexに伝えてよいこと:
+
+```text
+D1 migrationまで完了しました。次はJPX企業辞書のimportに進んでください。
+```

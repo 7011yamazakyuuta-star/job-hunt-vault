@@ -11,11 +11,14 @@ This repository is public. Do not commit real job-hunting data, account IDs, pas
 - Personal room creation for one-person tracking.
 - Shared room creation and join flow using Room ID/code plus passphrase.
 - D1 schema and migration for users, sessions, rooms, members, companies, progress, events, tasks, vaults, logos, and audit logs.
+- Company catalog schema for JPX/manual/provider-backed reference data.
 - R2 avatar binding skeleton with authenticated Worker delivery.
 - Zod-validated Hono API routes.
 - React + Vite app shell with required frontend routes.
 - Browser-side Vault crypto module using PBKDF2 + AES-GCM.
+- Optional Logo.dev resolver/search integration for company logos.
 - Step-by-step Cloudflare setup guide in `docs/CLOUDFLARE_SETUP.md`.
+- Company catalog plan in `docs/DATA_CATALOG.md`.
 - GitHub Actions CI and Dependabot.
 
 ## Tech Stack
@@ -150,10 +153,17 @@ wrangler secret put GOOGLE_CLIENT_ID
 wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put SESSION_SECRET
 wrangler secret put TURNSTILE_SECRET_KEY
-wrangler secret put LOGO_PROVIDER_API_KEY
+wrangler secret put LOGO_DEV_SECRET_KEY
+wrangler secret put LOGO_DEV_PUBLISHABLE_KEY
 ```
 
-`LOGO_PROVIDER_API_KEY` is optional and reserved for a future logo resolver.
+`LOGO_DEV_SECRET_KEY` is optional for server-side brand search. `LOGO_DEV_PUBLISHABLE_KEY` is optional for domain-based image URLs. Keep both out of git and chat.
+
+## Company Catalog
+
+`company_catalog` stores reference data such as JPX-listed company names, ticker codes, market segments, industries, candidate domains, and provider metadata. It is separate from room-level `companies`, so importing or refreshing official data does not modify user progress, deadlines, notes, or Vault data.
+
+Use `GET /api/company-catalog/search` for local catalog lookup and `GET /api/logo/search` for provider-backed logo candidates. See `docs/DATA_CATALOG.md`.
 
 ## Turnstile Setup
 
@@ -200,4 +210,4 @@ Dependabot checks npm and GitHub Actions dependencies weekly.
 
 ## Company Logo Trademark Notice
 
-Company logos and trademarks belong to their respective owners. Manual logo URLs or future domain-based resolution must be used only for identification inside the user's job-hunting workspace and should not imply endorsement or affiliation.
+Company logos and trademarks belong to their respective owners. Manual logo URLs or provider-based resolution must be used only for identification inside the user's job-hunting workspace and should not imply endorsement or affiliation.

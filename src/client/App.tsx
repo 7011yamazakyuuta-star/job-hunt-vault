@@ -7,6 +7,7 @@ import {
   Columns3,
   FlaskConical,
   Gauge,
+  Globe2,
   KeyRound,
   Link as LinkIcon,
   LockKeyhole,
@@ -22,99 +23,253 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
 import { getHealth, getMe, type ApiUser } from "./api";
 
+type Locale = "ja" | "en";
 type CompanyStatus = "research" | "applied" | "interview" | "offer" | "hold";
+type CompanySortMode = "deadline" | "kana" | "industry";
+
+type LocalText = {
+  ja: string;
+  en: string;
+};
+
+type Company = {
+  id: string;
+  name: LocalText;
+  domain: string;
+  industry: LocalText;
+  dueDate: string;
+  status: CompanyStatus;
+  stage: LocalText;
+  owner: LocalText;
+  due: LocalText;
+  test: string;
+  visibility: LocalText;
+  accent: "blue" | "green" | "amber" | "rose" | "violet";
+};
+
+const copy = {
+  ja: {
+    nav: {
+      dashboard: "概要",
+      personal: "個人ルーム",
+      shared: "共有ルーム",
+      join: "参加",
+    },
+    tabs: {
+      overview: "全体",
+      companies: "企業台帳",
+      progress: "進捗",
+      kanban: "ボード",
+      tests: "適性検査",
+      calendar: "日程",
+      vault: "金庫",
+      settings: "設定",
+    },
+    status: {
+      checking: "接続確認中",
+      online: "オンライン",
+      offline: "API未接続",
+    },
+    home: {
+      eyebrow: "本日の運用",
+      title: "今日の選考ボード",
+      login: "Googleでログイン",
+      refresh: "セッション更新",
+      queue: "優先キュー",
+      pipeline: "企業台帳",
+      schedule: "日程",
+      vault: "個人金庫",
+      logos: "企業ロゴ連携",
+      newCompany: "企業を追加",
+    },
+  },
+  en: {
+    nav: {
+      dashboard: "Overview",
+      personal: "Personal room",
+      shared: "Shared room",
+      join: "Join",
+    },
+    tabs: {
+      overview: "Overview",
+      companies: "Companies",
+      progress: "Progress",
+      kanban: "Board",
+      tests: "Tests",
+      calendar: "Calendar",
+      vault: "Vault",
+      settings: "Settings",
+    },
+    status: {
+      checking: "checking",
+      online: "online",
+      offline: "API offline",
+    },
+    home: {
+      eyebrow: "Today",
+      title: "Selection Board",
+      login: "Sign in with Google",
+      refresh: "Refresh session",
+      queue: "Priority queue",
+      pipeline: "Company ledger",
+      schedule: "Schedule",
+      vault: "Private vault",
+      logos: "Logo provider",
+      newCompany: "Add company",
+    },
+  },
+} satisfies Record<Locale, unknown>;
 
 const navItems = [
-  { to: "/", label: "Dashboard", icon: Gauge },
-  { to: "/personal/new", label: "Personal room", icon: Plus },
-  { to: "/rooms/new", label: "Shared room", icon: UsersRound },
-  { to: "/join", label: "Join", icon: UserRoundPlus },
+  { to: "/", key: "dashboard" as const, icon: Gauge },
+  { to: "/personal/new", key: "personal" as const, icon: Plus },
+  { to: "/rooms/new", key: "shared" as const, icon: UsersRound },
+  { to: "/join", key: "join" as const, icon: UserRoundPlus },
 ];
 
 const roomTabs = [
-  { suffix: "", label: "Overview", icon: Gauge },
-  { suffix: "/companies", label: "Companies", icon: BriefcaseBusiness },
-  { suffix: "/progress", label: "Progress", icon: CheckCircle2 },
-  { suffix: "/kanban", label: "Kanban", icon: Columns3 },
-  { suffix: "/tests", label: "Tests", icon: FlaskConical },
-  { suffix: "/calendar", label: "Calendar", icon: CalendarDays },
-  { suffix: "/vault", label: "Vault", icon: KeyRound },
-  { suffix: "/settings", label: "Settings", icon: Settings },
+  { suffix: "", key: "overview" as const, icon: Gauge },
+  { suffix: "/companies", key: "companies" as const, icon: BriefcaseBusiness },
+  { suffix: "/progress", key: "progress" as const, icon: CheckCircle2 },
+  { suffix: "/kanban", key: "kanban" as const, icon: Columns3 },
+  { suffix: "/tests", key: "tests" as const, icon: FlaskConical },
+  { suffix: "/calendar", key: "calendar" as const, icon: CalendarDays },
+  { suffix: "/vault", key: "vault" as const, icon: KeyRound },
+  { suffix: "/settings", key: "settings" as const, icon: Settings },
 ];
 
-const companies = [
+const companies: Company[] = [
   {
-    id: "c1",
-    name: "Northstar Labs",
-    domain: "northstar.example",
-    status: "interview" as const,
-    step: "Final interview",
-    owner: "YU",
-    deadline: "Jun 24",
+    id: "sony",
+    name: { ja: "ソニーグループ", en: "Sony Group" },
+    domain: "sony.com",
+    industry: { ja: "電機・エンタメ", en: "Electronics / entertainment" },
+    dueDate: "2026-06-24T10:00:00.000Z",
+    status: "interview",
+    stage: { ja: "二次面接前", en: "Second interview" },
+    owner: { ja: "自分", en: "Me" },
+    due: { ja: "6/24 10:00", en: "Jun 24 10:00" },
     test: "TG-WEB",
-    visibility: "Room",
+    visibility: { ja: "共有", en: "Room" },
     accent: "blue",
   },
   {
-    id: "c2",
-    name: "Kanda Mobility",
-    domain: "kanda.example",
-    status: "applied" as const,
-    step: "ES submitted",
-    owner: "AK",
-    deadline: "Jun 27",
+    id: "recruit",
+    name: { ja: "リクルート", en: "Recruit" },
+    domain: "recruit.co.jp",
+    industry: { ja: "人材・メディア", en: "HR / media" },
+    dueDate: "2026-06-27T14:59:00.000Z",
+    status: "applied",
+    stage: { ja: "ES提出済み", en: "ES submitted" },
+    owner: { ja: "AK", en: "AK" },
+    due: { ja: "6/27", en: "Jun 27" },
     test: "SPI",
-    visibility: "Room",
+    visibility: { ja: "共有", en: "Room" },
     accent: "green",
   },
   {
-    id: "c3",
-    name: "Mizube Systems",
-    domain: "mizube.example",
-    status: "research" as const,
-    step: "Company research",
-    owner: "ME",
-    deadline: "Jul 02",
-    test: "Unknown",
-    visibility: "Private",
+    id: "toyota",
+    name: { ja: "トヨタ自動車", en: "Toyota Motor" },
+    domain: "toyota-global.com",
+    industry: { ja: "自動車", en: "Automotive" },
+    dueDate: "2026-07-02T14:59:00.000Z",
+    status: "research",
+    stage: { ja: "企業研究", en: "Research" },
+    owner: { ja: "自分", en: "Me" },
+    due: { ja: "7/02", en: "Jul 02" },
+    test: "不明",
+    visibility: { ja: "非公開", en: "Private" },
     accent: "amber",
   },
   {
-    id: "c4",
-    name: "Sora Foods",
-    domain: "sora.example",
-    status: "offer" as const,
-    step: "Offer review",
-    owner: "YU",
-    deadline: "Jul 05",
+    id: "nintendo",
+    name: { ja: "任天堂", en: "Nintendo" },
+    domain: "nintendo.com",
+    industry: { ja: "ゲーム・玩具", en: "Games / toys" },
+    dueDate: "2026-07-05T14:59:00.000Z",
+    status: "offer",
+    stage: { ja: "条件確認", en: "Offer review" },
+    owner: { ja: "自分", en: "Me" },
+    due: { ja: "7/05", en: "Jul 05" },
     test: "CUBIC",
-    visibility: "Room",
+    visibility: { ja: "共有", en: "Room" },
     accent: "rose",
+  },
+  {
+    id: "cyberagent",
+    name: { ja: "サイバーエージェント", en: "CyberAgent" },
+    domain: "cyberagent.co.jp",
+    industry: { ja: "広告・IT", en: "Advertising / IT" },
+    dueDate: "2026-07-10T14:59:00.000Z",
+    status: "hold",
+    stage: { ja: "連絡待ち", en: "Waiting" },
+    owner: { ja: "YU", en: "YU" },
+    due: { ja: "7/10", en: "Jul 10" },
+    test: "企業独自",
+    visibility: { ja: "共有", en: "Room" },
+    accent: "violet",
   },
 ];
 
 const calendarItems = [
-  { time: "10:00", title: "Northstar Labs final interview", meta: "Room / online" },
-  { time: "14:30", title: "Mizube Systems research block", meta: "Private memo" },
-  { time: "18:00", title: "Kanda Mobility test prep", meta: "SPI" },
+  {
+    time: "10:00",
+    title: { ja: "ソニーグループ 二次面接", en: "Sony Group second interview" },
+    meta: { ja: "オンライン / 共有メモ確認", en: "Online / review room notes" },
+  },
+  {
+    time: "14:30",
+    title: { ja: "トヨタ自動車 企業研究", en: "Toyota research block" },
+    meta: { ja: "非公開メモ", en: "Private note" },
+  },
+  {
+    time: "18:00",
+    title: { ja: "リクルート SPI復習", en: "Recruit SPI review" },
+    meta: { ja: "過去レポート参照", en: "Use past reports" },
+  },
+];
+
+const priorityItems = [
+  {
+    label: { ja: "面接前に確認", en: "Before interview" },
+    title: { ja: "ソニーグループ: 逆質問と研究領域メモ", en: "Sony Group: questions and research notes" },
+    due: { ja: "今日 21:00", en: "Today 21:00" },
+  },
+  {
+    label: { ja: "提出物", en: "Submission" },
+    title: { ja: "リクルート: MyPageの追加設問", en: "Recruit: MyPage extra question" },
+    due: { ja: "明日", en: "Tomorrow" },
+  },
+  {
+    label: { ja: "整理", en: "Triage" },
+    title: { ja: "企業ロゴとドメイン未登録の候補を補完", en: "Complete missing domains and logos" },
+    due: { ja: "今週", en: "This week" },
+  },
 ];
 
 const kanbanColumns = [
-  { title: "Research", status: "research" as const },
-  { title: "Applied", status: "applied" as const },
-  { title: "Interview", status: "interview" as const },
-  { title: "Offer", status: "offer" as const },
+  { title: { ja: "企業研究", en: "Research" }, status: "research" as const },
+  { title: { ja: "応募済み", en: "Applied" }, status: "applied" as const },
+  { title: { ja: "面接中", en: "Interview" }, status: "interview" as const },
+  { title: { ja: "内定/条件", en: "Offer" }, status: "offer" as const },
 ];
 
 const testReports = [
-  { company: "Northstar Labs", type: "TG-WEB", source: "Room note", updated: "Today" },
-  { company: "Kanda Mobility", type: "SPI", source: "Past candidate", updated: "Yesterday" },
-  { company: "Sora Foods", type: "CUBIC", source: "Manual", updated: "Jun 18" },
+  { company: companies[0], type: "TG-WEB", source: { ja: "共有メモ", en: "Room note" }, updated: { ja: "今日", en: "Today" } },
+  { company: companies[1], type: "SPI", source: { ja: "先輩レポート", en: "Past candidate" }, updated: { ja: "昨日", en: "Yesterday" } },
+  { company: companies[3], type: "CUBIC", source: { ja: "手入力", en: "Manual" }, updated: { ja: "6/18", en: "Jun 18" } },
 ];
 
+const referenceNow = new Date("2026-06-21T09:00:00+09:00");
+
 export default function App() {
+  const [locale, setLocale] = useState<Locale>(() => readInitialLocale());
   const [user, setUser] = useState<ApiUser | null>(null);
-  const [health, setHealth] = useState<string>("checking");
+  const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
+
+  useEffect(() => {
+    window.localStorage.setItem("job-hunt-vault-locale", locale);
+  }, [locale]);
 
   useEffect(() => {
     let active = true;
@@ -132,130 +287,153 @@ export default function App() {
     };
   }, []);
 
+  const t = copy[locale];
+
   return (
-    <div className="app-shell">
+    <div className="app-shell" lang={locale}>
       <aside className="sidebar">
         <Link className="brand" to="/" aria-label="Job Hunt Vault home">
           <span className="brand-mark">JH</span>
           <span>
             <strong>Job Hunt Vault</strong>
-            <small>{health}</small>
+            <small>{t.status[health]}</small>
           </span>
         </Link>
 
-        <nav aria-label="Primary" className="main-nav">
+        <nav aria-label={locale === "ja" ? "メイン" : "Primary"} className="main-nav">
           {navItems.map((item) => (
             <NavLink className="nav-item" key={item.to} to={item.to}>
               <item.icon size={18} aria-hidden="true" />
-              <span>{item.label}</span>
+              <span>{t.nav[item.key]}</span>
             </NavLink>
           ))}
         </nav>
 
-        <section className="room-switcher" aria-label="Rooms">
-          <p>Rooms</p>
+        <section className="room-switcher" aria-label={locale === "ja" ? "ルーム" : "Rooms"}>
+          <p>{locale === "ja" ? "ルーム" : "Rooms"}</p>
           <Link to="/rooms/demo-room" className="room-pill active-room">
             <span className="room-dot" />
-            <span>Tokyo 2027</span>
+            <span>{locale === "ja" ? "2027 東京" : "Tokyo 2027"}</span>
           </Link>
           <Link to="/rooms/personal" className="room-pill">
             <LockKeyhole size={14} aria-hidden="true" />
-            <span>Personal</span>
+            <span>{locale === "ja" ? "個人" : "Personal"}</span>
           </Link>
         </section>
+
+        <LocaleSwitch locale={locale} setLocale={setLocale} />
 
         <div className="session-panel">
           <div className="avatar">{initialsFor(user?.name ?? "Dev User")}</div>
           <div>
-            <strong>{user?.name ?? "Not signed in"}</strong>
-            <small>{user?.email ?? "Google OAuth or local mock"}</small>
+            <strong>{user?.name ?? (locale === "ja" ? "未ログイン" : "Not signed in")}</strong>
+            <small>{user?.email ?? (locale === "ja" ? "Google OAuth / ローカル確認" : "Google OAuth / local mock")}</small>
           </div>
         </div>
       </aside>
 
       <main className="content">
         <Routes>
-          <Route path="/" element={<HomePage user={user} />} />
-          <Route path="/personal/new" element={<StartRoomPage mode="personal" />} />
-          <Route path="/rooms/new" element={<StartRoomPage mode="shared" />} />
-          <Route path="/join/:roomCode?" element={<JoinRoomPage />} />
-          <Route path="/rooms/:roomId" element={<RoomPage tab="overview" />} />
-          <Route path="/rooms/:roomId/companies" element={<RoomPage tab="companies" />} />
-          <Route path="/rooms/:roomId/companies/:companyId" element={<RoomPage tab="company-detail" />} />
-          <Route path="/rooms/:roomId/progress" element={<RoomPage tab="progress" />} />
-          <Route path="/rooms/:roomId/kanban" element={<RoomPage tab="kanban" />} />
-          <Route path="/rooms/:roomId/tests" element={<RoomPage tab="tests" />} />
-          <Route path="/rooms/:roomId/calendar" element={<RoomPage tab="calendar" />} />
-          <Route path="/rooms/:roomId/vault" element={<RoomPage tab="vault" />} />
-          <Route path="/rooms/:roomId/settings" element={<RoomPage tab="settings" />} />
+          <Route path="/" element={<HomePage locale={locale} user={user} />} />
+          <Route path="/personal/new" element={<StartRoomPage locale={locale} mode="personal" />} />
+          <Route path="/rooms/new" element={<StartRoomPage locale={locale} mode="shared" />} />
+          <Route path="/join/:roomCode?" element={<JoinRoomPage locale={locale} />} />
+          <Route path="/rooms/:roomId" element={<RoomPage locale={locale} tab="overview" />} />
+          <Route path="/rooms/:roomId/companies" element={<RoomPage locale={locale} tab="companies" />} />
+          <Route path="/rooms/:roomId/companies/:companyId" element={<RoomPage locale={locale} tab="company-detail" />} />
+          <Route path="/rooms/:roomId/progress" element={<RoomPage locale={locale} tab="progress" />} />
+          <Route path="/rooms/:roomId/kanban" element={<RoomPage locale={locale} tab="kanban" />} />
+          <Route path="/rooms/:roomId/tests" element={<RoomPage locale={locale} tab="tests" />} />
+          <Route path="/rooms/:roomId/calendar" element={<RoomPage locale={locale} tab="calendar" />} />
+          <Route path="/rooms/:roomId/vault" element={<RoomPage locale={locale} tab="vault" />} />
+          <Route path="/rooms/:roomId/settings" element={<RoomPage locale={locale} tab="settings" />} />
         </Routes>
       </main>
     </div>
   );
 }
 
-function HomePage({ user }: { user: ApiUser | null }) {
+function HomePage({ locale, user }: { locale: Locale; user: ApiUser | null }) {
   const [filter, setFilter] = useState<CompanyStatus | "all">("all");
-  const visibleCompanies = filter === "all" ? companies : companies.filter((company) => company.status === filter);
+  const [sortMode, setSortMode] = useState<CompanySortMode>("deadline");
+  const [industryFilter, setIndustryFilter] = useState<string>("all");
+  const t = copy[locale];
+  const visibleCompanies = useMemo(
+    () => sortCompanies(filterCompanies(companies, filter, industryFilter, locale), sortMode, locale),
+    [filter, industryFilter, locale, sortMode],
+  );
 
   return (
     <>
       <header className="page-header">
         <div>
-          <p className="eyebrow">Today</p>
-          <h1>Job Hunt Vault</h1>
+          <p className="eyebrow">{t.home.eyebrow}</p>
+          <h1>{t.home.title}</h1>
         </div>
         <a className="primary-action" href="/api/auth/google/start">
           <LogIn size={18} aria-hidden="true" />
-          <span>{user ? "Refresh session" : "Google login"}</span>
+          <span>{user ? t.home.refresh : t.home.login}</span>
         </a>
       </header>
 
-      <section className="dashboard-grid">
-        <div className="focus-panel">
-          <div className="focus-copy">
-            <span className="status-dot">3 due soon</span>
-            <h2>Next interview is the risk point.</h2>
-            <p>Northstar final round is closest. Confirm company notes, test history, and private login material before the meeting.</p>
-          </div>
-          <div className="focus-actions">
-            <Link className="secondary-action" to="/rooms/demo-room/companies/c1">
-              <BriefcaseBusiness size={17} aria-hidden="true" />
-              <span>Open company</span>
-            </Link>
-            <Link className="secondary-action" to="/rooms/demo-room/vault">
-              <KeyRound size={17} aria-hidden="true" />
-              <span>Vault</span>
-            </Link>
-          </div>
-        </div>
+      <section className="ops-grid" aria-label={locale === "ja" ? "本日の要点" : "Today summary"}>
+        <Metric label={locale === "ja" ? "本日締切" : "Due today"} value="2" trend={locale === "ja" ? "ES / 面接準備" : "ES / prep"} />
+        <Metric label={locale === "ja" ? "次の面接" : "Next interview"} value="6/24" trend="10:00" />
+        <Metric label={locale === "ja" ? "未整理メモ" : "Unsorted notes"} value="5" trend={locale === "ja" ? "共有前確認" : "Review before sharing"} />
+        <Metric label={locale === "ja" ? "ロゴ候補" : "Logo candidates"} value="5" trend={locale === "ja" ? "ドメイン登録済み" : "Domains ready"} />
+      </section>
 
-        <div className="metrics-panel" aria-label="Room metrics">
-          <Metric label="Active companies" value="12" trend="+3 this week" />
-          <Metric label="Interviews" value="4" trend="2 final rounds" />
-          <Metric label="Private items" value="7" trend="encrypted" />
+      <DeadlineStrip companies={companies} locale={locale} />
+
+      <section className="workbench">
+        <div className="surface queue-surface">
+          <PanelHeader title={t.home.queue} actionLabel={locale === "ja" ? "日程へ" : "Schedule"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
+          <PriorityList locale={locale} />
+        </div>
+        <div className="surface next-company">
+          <div>
+            <p className="eyebrow">{locale === "ja" ? "次に触る企業" : "Next company"}</p>
+            <h2>{text(companies[0].name, locale)}</h2>
+            <span>{companies[0].domain}</span>
+          </div>
+          <div className="next-company-grid">
+            <DetailItem label={locale === "ja" ? "現在地" : "Stage"} value={text(companies[0].stage, locale)} />
+            <DetailItem label={locale === "ja" ? "検査" : "Test"} value={companies[0].test} />
+          </div>
+          <Link className="secondary-action" to="/rooms/demo-room/companies/sony">
+            <BriefcaseBusiness size={17} aria-hidden="true" />
+            <span>{locale === "ja" ? "企業詳細" : "Company detail"}</span>
+          </Link>
         </div>
       </section>
 
       <section className="split-layout">
         <div className="surface table-surface">
-          <PanelHeader title="Pipeline" actionLabel="New company" to="/rooms/demo-room/companies" icon={Plus} />
-          <SegmentedFilter value={filter} onChange={setFilter} />
-          <CompanyTable companies={visibleCompanies} />
+          <PanelHeader title={t.home.pipeline} actionLabel={t.home.newCompany} to="/rooms/demo-room/companies" icon={Plus} />
+          <CompanyControls
+            industryFilter={industryFilter}
+            locale={locale}
+            setIndustryFilter={setIndustryFilter}
+            setSortMode={setSortMode}
+            sortMode={sortMode}
+          />
+          <SegmentedFilter locale={locale} value={filter} onChange={setFilter} />
+          <CompanyTable companies={visibleCompanies} locale={locale} />
         </div>
 
         <aside className="right-rail">
           <div className="surface">
-            <PanelHeader title="Schedule" actionLabel="Calendar" to="/rooms/demo-room/calendar" icon={CalendarDays} />
-            <Timeline />
+          <PanelHeader title={t.home.schedule} actionLabel={locale === "ja" ? "開く" : "Open"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
+            <DeadlineCalendar companies={companies.slice(0, 4)} locale={locale} />
           </div>
+          <LogoProviderPanel locale={locale} />
           <div className="surface vault-summary">
             <div>
               <ShieldCheck size={20} aria-hidden="true" />
-              <strong>Vault stays personal</strong>
-              <span>3 credentials attached to active applications</span>
+              <strong>{t.home.vault}</strong>
+              <span>{locale === "ja" ? "認証情報 7件 / 共有なし" : "7 credentials / no sharing"}</span>
             </div>
-            <Link to="/rooms/demo-room/vault" aria-label="Open vault">
+            <Link to="/rooms/demo-room/vault" aria-label={locale === "ja" ? "金庫を開く" : "Open vault"}>
               <ArrowRight size={18} aria-hidden="true" />
             </Link>
           </div>
@@ -265,149 +443,162 @@ function HomePage({ user }: { user: ApiUser | null }) {
   );
 }
 
-function StartRoomPage({ mode }: { mode: "personal" | "shared" }) {
-  const title = mode === "personal" ? "New personal room" : "New shared room";
+function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "shared" }) {
+  const isPersonal = mode === "personal";
+  const title = isPersonal
+    ? locale === "ja"
+      ? "個人ルームを作成"
+      : "New personal room"
+    : locale === "ja"
+      ? "共有ルームを作成"
+      : "New shared room";
   return (
     <>
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">Room setup</p>
+          <p className="eyebrow">{locale === "ja" ? "ルーム設定" : "Room setup"}</p>
           <h1>{title}</h1>
         </div>
       </header>
       <div className="setup-layout">
         <form className="form-panel">
           <label>
-            Room name
-            <input name="name" placeholder={mode === "personal" ? "My job hunt" : "Tokyo 2027 team"} />
+            {locale === "ja" ? "ルーム名" : "Room name"}
+            <input name="name" placeholder={isPersonal ? (locale === "ja" ? "自分の就活" : "My job hunt") : "2027 東京"} />
           </label>
-          {mode === "shared" ? (
+          {!isPersonal ? (
             <label>
-              Passphrase
-              <input name="passphrase" type="password" placeholder="At least 8 characters" />
+              {locale === "ja" ? "合言葉" : "Passphrase"}
+              <input name="passphrase" type="password" placeholder={locale === "ja" ? "8文字以上" : "At least 8 characters"} />
             </label>
           ) : null}
           <label>
-            Display name
-            <input name="displayName" placeholder="Name shown in this room" />
+            {locale === "ja" ? "表示名" : "Display name"}
+            <input name="displayName" placeholder={locale === "ja" ? "ルーム内で表示する名前" : "Name shown in this room"} />
           </label>
           <button className="primary-action" type="button">
             <Plus size={18} aria-hidden="true" />
-            <span>Create</span>
+            <span>{locale === "ja" ? "作成" : "Create"}</span>
           </button>
         </form>
-        <SetupNotes mode={mode} />
+        <SetupNotes locale={locale} mode={mode} />
       </div>
     </>
   );
 }
 
-function JoinRoomPage() {
+function JoinRoomPage({ locale }: { locale: Locale }) {
   const { roomCode } = useParams();
   return (
     <>
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">Invitation</p>
-          <h1>Join room</h1>
+          <p className="eyebrow">{locale === "ja" ? "招待" : "Invitation"}</p>
+          <h1>{locale === "ja" ? "共有ルームに参加" : "Join room"}</h1>
         </div>
       </header>
       <div className="setup-layout">
         <form className="form-panel">
           <label>
-            Room code
+            {locale === "ja" ? "ルームコード" : "Room code"}
             <input name="roomCode" defaultValue={roomCode ?? ""} placeholder="rm_..." />
           </label>
           <label>
-            Passphrase
+            {locale === "ja" ? "合言葉" : "Passphrase"}
             <input name="passphrase" type="password" />
           </label>
           <label>
-            Display name
-            <input name="displayName" placeholder="Name shown in this room" />
+            {locale === "ja" ? "表示名" : "Display name"}
+            <input name="displayName" placeholder={locale === "ja" ? "ルーム内で表示する名前" : "Name shown in this room"} />
           </label>
           <button className="primary-action" type="button">
             <UserRoundPlus size={18} aria-hidden="true" />
-            <span>Join</span>
+            <span>{locale === "ja" ? "参加" : "Join"}</span>
           </button>
         </form>
         <div className="surface setup-notes">
-          <h2>Shared boundary</h2>
-          <p>Room data is shared only after Google login and passphrase verification. Private progress and Vault items stay with the current user.</p>
+          <h2>{locale === "ja" ? "共有の境界" : "Shared boundary"}</h2>
+          <p>
+            {locale === "ja"
+              ? "企業情報と共有進捗はルーム内に出ます。個人の金庫と非公開進捗は本人だけに残ります。"
+              : "Company data and room-visible progress are shared. Vault items and private progress stay personal."}
+          </p>
         </div>
       </div>
     </>
   );
 }
 
-function RoomPage({ tab }: { tab: string }) {
+function RoomPage({ locale, tab }: { locale: Locale; tab: string }) {
   const { roomId, companyId } = useParams();
-  const title = useMemo(() => titleForTab(tab), [tab]);
+  const title = useMemo(() => titleForTab(tab, locale), [locale, tab]);
 
   return (
     <>
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">Room {roomId}</p>
+          <p className="eyebrow">{locale === "ja" ? `ルーム ${roomId}` : `Room ${roomId}`}</p>
           <h1>{title}</h1>
         </div>
         <Link className="secondary-action" to="/rooms/demo-room/companies">
           <Search size={17} aria-hidden="true" />
-          <span>Search room</span>
+          <span>{locale === "ja" ? "検索" : "Search"}</span>
         </Link>
       </header>
-      <RoomNav roomId={roomId ?? "demo-room"} />
-      <RoomContent tab={tab} companyId={companyId} />
+      <RoomNav locale={locale} roomId={roomId ?? "demo-room"} />
+      <RoomContent locale={locale} tab={tab} companyId={companyId} />
     </>
   );
 }
 
-function RoomNav({ roomId }: { roomId: string }) {
+function RoomNav({ locale, roomId }: { locale: Locale; roomId: string }) {
+  const t = copy[locale];
   return (
-    <nav className="tab-row" aria-label="Room">
+    <nav className="tab-row" aria-label={locale === "ja" ? "ルーム" : "Room"}>
       {roomTabs.map((item) => (
-        <NavLink className="tab-item" key={item.label} to={`/rooms/${roomId}${item.suffix}`} end={item.suffix === ""}>
+        <NavLink className="tab-item" key={item.key} to={`/rooms/${roomId}${item.suffix}`} end={item.suffix === ""}>
           <item.icon size={16} aria-hidden="true" />
-          <span>{item.label}</span>
+          <span>{t.tabs[item.key]}</span>
         </NavLink>
       ))}
     </nav>
   );
 }
 
-function RoomContent({ tab, companyId }: { tab: string; companyId?: string }) {
+function RoomContent({ locale, tab, companyId }: { locale: Locale; tab: string; companyId?: string }) {
   if (tab === "companies") {
     return (
       <section className="surface table-surface">
-        <PanelHeader title="Companies" actionLabel="Add" to="/rooms/demo-room/companies" icon={Plus} />
-        <CompanyTable companies={companies} />
+        <PanelHeader title={locale === "ja" ? "企業台帳" : "Companies"} actionLabel={locale === "ja" ? "追加" : "Add"} to="/rooms/demo-room/companies" icon={Plus} />
+        <CompanyIntakePanel locale={locale} />
+        <CompanyTable companies={companies} locale={locale} />
       </section>
     );
   }
 
   if (tab === "company-detail") {
     const company = companies.find((item) => item.id === companyId) ?? companies[0];
-    return <CompanyDetail company={company} />;
+    return <CompanyDetail company={company} locale={locale} />;
   }
 
   if (tab === "progress") {
     return (
       <section className="surface">
-        <PanelHeader title="Progress matrix" actionLabel="Update" to="/rooms/demo-room/progress" icon={CheckCircle2} />
-        <ProgressMatrix />
+        <PanelHeader title={locale === "ja" ? "進捗マトリクス" : "Progress matrix"} actionLabel={locale === "ja" ? "更新" : "Update"} to="/rooms/demo-room/progress" icon={CheckCircle2} />
+        <ProgressMatrix locale={locale} />
       </section>
     );
   }
 
   if (tab === "kanban") {
-    return <KanbanBoard />;
+    return <KanbanBoard locale={locale} />;
   }
 
   if (tab === "tests") {
     return (
       <section className="surface table-surface">
-        <PanelHeader title="Test reports" actionLabel="Add report" to="/rooms/demo-room/tests" icon={FlaskConical} />
-        <TestReportTable />
+        <PanelHeader title={locale === "ja" ? "適性検査レポート" : "Test reports"} actionLabel={locale === "ja" ? "追加" : "Add report"} to="/rooms/demo-room/tests" icon={FlaskConical} />
+        <TestReportTable locale={locale} />
       </section>
     );
   }
@@ -415,135 +606,209 @@ function RoomContent({ tab, companyId }: { tab: string; companyId?: string }) {
   if (tab === "calendar") {
     return (
       <section className="surface calendar-surface">
-        <PanelHeader title="Calendar" actionLabel="New event" to="/rooms/demo-room/calendar" icon={CalendarDays} />
-        <Timeline />
+        <PanelHeader title={locale === "ja" ? "日程" : "Calendar"} actionLabel={locale === "ja" ? "予定追加" : "New event"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
+        <DeadlineCalendar companies={companies} locale={locale} large />
+        <Timeline locale={locale} />
       </section>
     );
   }
 
   if (tab === "vault") {
-    return <VaultPanel />;
+    return <VaultPanel locale={locale} />;
   }
 
   if (tab === "settings") {
-    return <SettingsPanel />;
+    return <SettingsPanel locale={locale} />;
   }
 
   return (
     <section className="split-layout">
       <div className="surface table-surface">
-        <PanelHeader title="Room overview" actionLabel="New company" to="/rooms/demo-room/companies" icon={Plus} />
-        <CompanyTable companies={companies.slice(0, 3)} />
+        <PanelHeader title={locale === "ja" ? "ルーム全体" : "Room overview"} actionLabel={locale === "ja" ? "企業追加" : "New company"} to="/rooms/demo-room/companies" icon={Plus} />
+        <CompanyTable companies={companies.slice(0, 4)} locale={locale} />
       </div>
       <aside className="right-rail">
         <div className="surface">
-          <PanelHeader title="Today" actionLabel="Open" to="/rooms/demo-room/calendar" icon={CalendarDays} />
-          <Timeline />
+          <PanelHeader title={locale === "ja" ? "今日" : "Today"} actionLabel={locale === "ja" ? "開く" : "Open"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
+          <Timeline locale={locale} />
         </div>
-        <div className="surface">
-          <PanelHeader title="Tests" actionLabel="View" to="/rooms/demo-room/tests" icon={FlaskConical} />
-          <TestReportTable compact />
-        </div>
+        <LogoProviderPanel locale={locale} />
       </aside>
     </section>
   );
 }
 
-function CompanyTable({ companies: rows }: { companies: typeof companies }) {
+function CompanyTable({ companies: rows, locale }: { companies: Company[]; locale: Locale }) {
   return (
-    <div className="data-table" role="table" aria-label="Companies">
+    <div className="data-table" role="table" aria-label={locale === "ja" ? "企業" : "Companies"}>
       <div className="table-row table-head" role="row">
-        <span>Company</span>
-        <span>Status</span>
-        <span>Step</span>
-        <span>Deadline</span>
-        <span>Owner</span>
+        <span>{locale === "ja" ? "企業" : "Company"}</span>
+        <span>{locale === "ja" ? "業種" : "Industry"}</span>
+        <span>{locale === "ja" ? "状態" : "Status"}</span>
+        <span>{locale === "ja" ? "現在地" : "Stage"}</span>
+        <span>{locale === "ja" ? "期限" : "Due"}</span>
+        <span>{locale === "ja" ? "担当" : "Owner"}</span>
       </div>
       {rows.map((company) => (
         <Link className="table-row" role="row" key={company.id} to={`/rooms/demo-room/companies/${company.id}`}>
           <span className="company-cell">
-            <span className={`logo-chip ${company.accent}`}>{company.name.slice(0, 1)}</span>
+            <span className={`logo-chip ${company.accent}`}>{initialsFor(text(company.name, locale))}</span>
             <span>
-              <strong>{company.name}</strong>
+              <strong>{text(company.name, locale)}</strong>
               <small>{company.domain}</small>
             </span>
           </span>
-          <StatusBadge status={company.status} />
-          <span>{company.step}</span>
-          <span>{company.deadline}</span>
-          <span className="owner-chip">{company.owner}</span>
+          <span>{text(company.industry, locale)}</span>
+          <StatusBadge locale={locale} status={company.status} />
+          <span>{text(company.stage, locale)}</span>
+          <span className={`remaining-cell ${deadlineTone(company.dueDate)}`}>
+            <strong>{remainingTimeText(company.dueDate, locale)}</strong>
+            <small>{text(company.due, locale)}</small>
+          </span>
+          <span className="owner-chip">{text(company.owner, locale)}</span>
         </Link>
       ))}
     </div>
   );
 }
 
-function CompanyDetail({ company }: { company: (typeof companies)[number] }) {
+function CompanyDetail({ company, locale }: { company: Company; locale: Locale }) {
   return (
     <section className="detail-layout">
       <div className="surface detail-main">
         <div className="company-title">
-          <span className={`logo-chip large ${company.accent}`}>{company.name.slice(0, 1)}</span>
+          <span className={`logo-chip large ${company.accent}`}>{initialsFor(text(company.name, locale))}</span>
           <div>
             <p className="eyebrow">{company.domain}</p>
-            <h2>{company.name}</h2>
+            <h2>{text(company.name, locale)}</h2>
           </div>
         </div>
         <div className="detail-grid">
-          <DetailItem label="Current step" value={company.step} />
-          <DetailItem label="Deadline" value={company.deadline} />
-          <DetailItem label="Test" value={company.test} />
-          <DetailItem label="Visibility" value={company.visibility} />
+          <DetailItem label={locale === "ja" ? "現在地" : "Current step"} value={text(company.stage, locale)} />
+          <DetailItem label={locale === "ja" ? "期限" : "Deadline"} value={text(company.due, locale)} />
+          <DetailItem label={locale === "ja" ? "適性検査" : "Test"} value={company.test} />
+          <DetailItem label={locale === "ja" ? "公開範囲" : "Visibility"} value={text(company.visibility, locale)} />
         </div>
         <div className="step-list">
-          {["Entry sheet", "Web test", "First interview", "Final interview"].map((step, index) => (
-            <div className="step-item" key={step}>
-              <span className={index < 3 ? "step-dot complete" : "step-dot"} />
-              <span>{step}</span>
-            </div>
-          ))}
+          {(locale === "ja" ? ["ES", "Webテスト", "一次面接", "二次面接", "最終面接"] : ["Entry sheet", "Web test", "First", "Second", "Final"]).map(
+            (step, index) => (
+              <div className="step-item" key={step}>
+                <span className={index < 3 ? "step-dot complete" : "step-dot"} />
+                <span>{step}</span>
+              </div>
+            ),
+          )}
         </div>
       </div>
       <aside className="right-rail">
         <div className="surface">
-          <PanelHeader title="Links" actionLabel="Open" to="#" icon={LinkIcon} />
+          <PanelHeader title={locale === "ja" ? "リンク" : "Links"} actionLabel={locale === "ja" ? "開く" : "Open"} to="#" icon={LinkIcon} />
           <div className="link-list">
-            <a href="#">Career page</a>
-            <a href="#">My page</a>
+            <a href="#">{locale === "ja" ? "採用ページ" : "Career page"}</a>
+            <a href="#">{locale === "ja" ? "MyPage" : "My page"}</a>
           </div>
         </div>
-        <div className="surface vault-summary">
-          <div>
-            <KeyRound size={20} aria-hidden="true" />
-            <strong>Private credentials</strong>
-            <span>1 encrypted item attached</span>
-          </div>
-          <Link to="/rooms/demo-room/vault" aria-label="Open vault">
-            <ArrowRight size={18} aria-hidden="true" />
-          </Link>
-        </div>
+        <LogoProviderPanel locale={locale} company={company} />
       </aside>
     </section>
   );
 }
 
-function SegmentedFilter({
-  value,
-  onChange,
+function CompanyControls({
+  industryFilter,
+  locale,
+  setIndustryFilter,
+  setSortMode,
+  sortMode,
 }: {
-  value: CompanyStatus | "all";
-  onChange: (value: CompanyStatus | "all") => void;
+  industryFilter: string;
+  locale: Locale;
+  setIndustryFilter: (value: string) => void;
+  setSortMode: (value: CompanySortMode) => void;
+  sortMode: CompanySortMode;
 }) {
-  const options: Array<{ value: CompanyStatus | "all"; label: string }> = [
-    { value: "all", label: "All" },
-    { value: "research", label: "Research" },
-    { value: "applied", label: "Applied" },
-    { value: "interview", label: "Interview" },
-    { value: "offer", label: "Offer" },
+  const industries = Array.from(new Set(companies.map((company) => text(company.industry, locale))));
+  const sortOptions: Array<{ value: CompanySortMode; label: LocalText }> = [
+    { value: "deadline", label: { ja: "締切順", en: "Deadline" } },
+    { value: "kana", label: { ja: "50音順", en: "A-Z" } },
+    { value: "industry", label: { ja: "業種順", en: "Industry" } },
   ];
 
   return (
-    <div className="segmented-control" role="tablist" aria-label="Pipeline filter">
+    <div className="company-controls">
+      <div className="sort-tabs" aria-label={locale === "ja" ? "並べ替え" : "Sort"}>
+        {sortOptions.map((option) => (
+          <button
+            className={sortMode === option.value ? "selected" : ""}
+            key={option.value}
+            onClick={() => setSortMode(option.value)}
+            type="button"
+          >
+            {text(option.label, locale)}
+          </button>
+        ))}
+      </div>
+      <label className="industry-select">
+        <span>{locale === "ja" ? "業種" : "Industry"}</span>
+        <select value={industryFilter} onChange={(event) => setIndustryFilter(event.target.value)}>
+          <option value="all">{locale === "ja" ? "すべて" : "All"}</option>
+          {industries.map((industry) => (
+            <option key={industry} value={industry}>
+              {industry}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function CompanyIntakePanel({ locale }: { locale: Locale }) {
+  return (
+    <form className="company-intake-panel">
+      <label>
+        {locale === "ja" ? "企業名" : "Company"}
+        <input placeholder={locale === "ja" ? "例: ソニーグループ" : "Example: Sony Group"} />
+      </label>
+      <label>
+        {locale === "ja" ? "業種" : "Industry"}
+        <input placeholder={locale === "ja" ? "例: 電機・エンタメ" : "Example: Electronics"} />
+      </label>
+      <label>
+        {locale === "ja" ? "直近締切" : "Priority deadline"}
+        <input type="datetime-local" />
+      </label>
+      <label>
+        {locale === "ja" ? "ドメイン" : "Domain"}
+        <input placeholder="example.com" />
+      </label>
+      <button className="secondary-action" type="button">
+        <Plus size={16} aria-hidden="true" />
+        <span>{locale === "ja" ? "下書き追加" : "Add draft"}</span>
+      </button>
+    </form>
+  );
+}
+
+function SegmentedFilter({
+  locale,
+  value,
+  onChange,
+}: {
+  locale: Locale;
+  value: CompanyStatus | "all";
+  onChange: (value: CompanyStatus | "all") => void;
+}) {
+  const options: Array<{ value: CompanyStatus | "all"; label: LocalText }> = [
+    { value: "all", label: { ja: "すべて", en: "All" } },
+    { value: "research", label: { ja: "企業研究", en: "Research" } },
+    { value: "applied", label: { ja: "応募済み", en: "Applied" } },
+    { value: "interview", label: { ja: "面接中", en: "Interview" } },
+    { value: "offer", label: { ja: "内定", en: "Offer" } },
+  ];
+
+  return (
+    <div className="segmented-control" role="tablist" aria-label={locale === "ja" ? "企業フィルター" : "Pipeline filter"}>
       {options.map((option) => (
         <button
           aria-selected={value === option.value}
@@ -552,22 +817,76 @@ function SegmentedFilter({
           onClick={() => onChange(option.value)}
           type="button"
         >
-          {option.label}
+          {text(option.label, locale)}
         </button>
       ))}
     </div>
   );
 }
 
-function Timeline() {
+function PriorityList({ locale }: { locale: Locale }) {
+  return (
+    <div className="priority-list">
+      {priorityItems.map((item) => (
+        <div className="priority-item" key={item.title.ja}>
+          <span>{text(item.label, locale)}</span>
+          <strong>{text(item.title, locale)}</strong>
+          <small>{text(item.due, locale)}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DeadlineStrip({ companies, locale }: { companies: Company[]; locale: Locale }) {
+  const urgent = sortCompanies(companies, "deadline", locale).filter((company) => daysUntil(company.dueDate) <= 3);
+  return (
+    <section className="deadline-strip" aria-label={locale === "ja" ? "締切アラート" : "Deadline alerts"}>
+      <div>
+        <strong>{locale === "ja" ? "2〜3日前に入った企業" : "Entering the 2-3 day window"}</strong>
+        <span>{locale === "ja" ? "残り時間が短い順に確認" : "Sorted by shortest remaining time"}</span>
+      </div>
+      <div className="deadline-chip-row">
+        {urgent.map((company) => (
+          <Link className={`deadline-chip ${deadlineTone(company.dueDate)}`} key={company.id} to={`/rooms/demo-room/companies/${company.id}`}>
+            <span>{text(company.name, locale)}</span>
+            <strong>{remainingTimeText(company.dueDate, locale)}</strong>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function DeadlineCalendar({ companies, locale, large = false }: { companies: Company[]; locale: Locale; large?: boolean }) {
+  const ordered = sortCompanies(companies, "deadline", locale);
+  return (
+    <div className={large ? "deadline-calendar large" : "deadline-calendar"}>
+      {ordered.map((company) => (
+        <Link className={`deadline-row ${deadlineTone(company.dueDate)}`} key={company.id} to={`/rooms/demo-room/companies/${company.id}`}>
+          <time dateTime={company.dueDate}>{deadlineDateLabel(company.dueDate, locale)}</time>
+          <span>
+            <strong>{text(company.name, locale)}</strong>
+            <small>
+              {text(company.stage, locale)} / {text(company.industry, locale)}
+            </small>
+          </span>
+          <b>{remainingTimeText(company.dueDate, locale)}</b>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function Timeline({ locale }: { locale: Locale }) {
   return (
     <div className="timeline">
       {calendarItems.map((item) => (
-        <div className="timeline-item" key={`${item.time}-${item.title}`}>
+        <div className="timeline-item" key={`${item.time}-${item.title.ja}`}>
           <time>{item.time}</time>
           <span>
-            <strong>{item.title}</strong>
-            <small>{item.meta}</small>
+            <strong>{text(item.title, locale)}</strong>
+            <small>{text(item.meta, locale)}</small>
           </span>
         </div>
       ))}
@@ -575,22 +894,22 @@ function Timeline() {
   );
 }
 
-function KanbanBoard() {
+function KanbanBoard({ locale }: { locale: Locale }) {
   return (
-    <section className="kanban-board" aria-label="Kanban">
+    <section className="kanban-board" aria-label={locale === "ja" ? "選考ボード" : "Kanban"}>
       {kanbanColumns.map((column) => (
         <div className="kanban-column" key={column.status}>
           <div className="kanban-header">
-            <strong>{column.title}</strong>
+            <strong>{text(column.title, locale)}</strong>
             <span>{companies.filter((company) => company.status === column.status).length}</span>
           </div>
           {companies
             .filter((company) => company.status === column.status)
             .map((company) => (
               <Link className="kanban-card" key={company.id} to={`/rooms/demo-room/companies/${company.id}`}>
-                <span className={`logo-chip ${company.accent}`}>{company.name.slice(0, 1)}</span>
-                <strong>{company.name}</strong>
-                <small>{company.step}</small>
+                <span className={`logo-chip ${company.accent}`}>{initialsFor(text(company.name, locale))}</span>
+                <strong>{text(company.name, locale)}</strong>
+                <small>{text(company.stage, locale)}</small>
               </Link>
             ))}
         </div>
@@ -599,19 +918,19 @@ function KanbanBoard() {
   );
 }
 
-function ProgressMatrix() {
-  const steps = ["ES", "Test", "1st", "Final", "Offer"];
+function ProgressMatrix({ locale }: { locale: Locale }) {
+  const steps = locale === "ja" ? ["ES", "検査", "一次", "二次", "最終"] : ["ES", "Test", "1st", "2nd", "Final"];
   return (
-    <div className="matrix" role="table" aria-label="Progress matrix">
+    <div className="matrix" role="table" aria-label={locale === "ja" ? "進捗マトリクス" : "Progress matrix"}>
       <div className="matrix-row matrix-head" role="row">
-        <span>Company</span>
+        <span>{locale === "ja" ? "企業" : "Company"}</span>
         {steps.map((step) => (
           <span key={step}>{step}</span>
         ))}
       </div>
       {companies.map((company, companyIndex) => (
         <div className="matrix-row" role="row" key={company.id}>
-          <strong>{company.name}</strong>
+          <strong>{text(company.name, locale)}</strong>
           {steps.map((step, stepIndex) => (
             <span className={stepIndex <= companyIndex ? "matrix-cell done" : "matrix-cell"} key={step}>
               {stepIndex <= companyIndex ? <CheckCircle2 size={15} aria-hidden="true" /> : <CircleDot size={15} aria-hidden="true" />}
@@ -623,24 +942,24 @@ function ProgressMatrix() {
   );
 }
 
-function TestReportTable({ compact = false }: { compact?: boolean }) {
+function TestReportTable({ locale, compact = false }: { locale: Locale; compact?: boolean }) {
   return (
-    <div className={compact ? "compact-list" : "data-table"} role="table" aria-label="Test reports">
+    <div className={compact ? "compact-list" : "data-table report-table"} role="table" aria-label={locale === "ja" ? "適性検査レポート" : "Test reports"}>
       {testReports.map((report) => (
-        <div className={compact ? "compact-row" : "table-row"} key={`${report.company}-${report.type}`}>
+        <div className={compact ? "compact-row" : "table-row"} key={`${report.company.id}-${report.type}`}>
           <span>
-            <strong>{report.company}</strong>
-            <small>{report.source}</small>
+            <strong>{text(report.company.name, locale)}</strong>
+            <small>{text(report.source, locale)}</small>
           </span>
           <span>{report.type}</span>
-          {!compact ? <span>{report.updated}</span> : null}
+          {!compact ? <span>{text(report.updated, locale)}</span> : null}
         </div>
       ))}
     </div>
   );
 }
 
-function VaultPanel() {
+function VaultPanel({ locale }: { locale: Locale }) {
   return (
     <section className="detail-layout">
       <div className="surface detail-main vault-panel">
@@ -649,60 +968,108 @@ function VaultPanel() {
             <KeyRound size={22} aria-hidden="true" />
           </span>
           <div>
-            <p className="eyebrow">Personal Vault</p>
-            <h2>Encrypted before upload</h2>
+            <p className="eyebrow">{locale === "ja" ? "個人金庫" : "Personal Vault"}</p>
+            <h2>{locale === "ja" ? "ブラウザで暗号化してから保存" : "Encrypted before upload"}</h2>
           </div>
         </div>
         <div className="vault-grid">
-          <DetailItem label="Items" value="7" />
-          <DetailItem label="Linked companies" value="3" />
-          <DetailItem label="Sharing" value="Off" />
+          <DetailItem label={locale === "ja" ? "保存項目" : "Items"} value="7" />
+          <DetailItem label={locale === "ja" ? "関連企業" : "Linked companies"} value="3" />
+          <DetailItem label={locale === "ja" ? "共有" : "Sharing"} value={locale === "ja" ? "なし" : "Off"} />
         </div>
         <form className="inline-vault-form">
           <label>
-            Label
-            <input placeholder="Northstar mypage" />
+            {locale === "ja" ? "ラベル" : "Label"}
+            <input placeholder={locale === "ja" ? "ソニー MyPage" : "Sony mypage"} />
           </label>
           <label>
-            Encrypted payload
-            <input placeholder="Created in browser" />
+            {locale === "ja" ? "暗号化済みデータ" : "Encrypted payload"}
+            <input placeholder={locale === "ja" ? "ブラウザ内で生成" : "Created in browser"} />
           </label>
           <button className="primary-action" type="button">
             <LockKeyhole size={17} aria-hidden="true" />
-            <span>Save encrypted item</span>
+            <span>{locale === "ja" ? "保存" : "Save"}</span>
           </button>
         </form>
       </div>
       <aside className="right-rail">
         <div className="surface setup-notes">
-          <h2>Vault boundary</h2>
-          <p>Passphrases never leave the browser. Server routes filter every credential item by owner user.</p>
+          <h2>{locale === "ja" ? "金庫の境界" : "Vault boundary"}</h2>
+          <p>
+            {locale === "ja"
+              ? "パスフレーズはブラウザから出ません。サーバーは暗号化済みpayloadだけをユーザー単位で保存します。"
+              : "Passphrases never leave the browser. Server routes filter every credential item by owner user."}
+          </p>
         </div>
       </aside>
     </section>
   );
 }
 
-function SettingsPanel() {
+function SettingsPanel({ locale }: { locale: Locale }) {
   return (
     <section className="surface settings-grid">
-      <DetailItem label="Room type" value="Shared" />
-      <DetailItem label="Join method" value="Room code + passphrase" />
-      <DetailItem label="Avatar storage" value="Private R2" />
-      <DetailItem label="Secrets" value="Cloudflare Workers" />
+      <DetailItem label={locale === "ja" ? "ルーム種別" : "Room type"} value={locale === "ja" ? "共有" : "Shared"} />
+      <DetailItem label={locale === "ja" ? "参加方法" : "Join method"} value={locale === "ja" ? "コード + 合言葉" : "Room code + passphrase"} />
+      <DetailItem label={locale === "ja" ? "アバター保存" : "Avatar storage"} value="Private R2" />
+      <DetailItem label={locale === "ja" ? "Secrets" : "Secrets"} value="Cloudflare Workers" />
+      <DetailItem label={locale === "ja" ? "ロゴ" : "Logos"} value="Logo.dev optional" />
     </section>
   );
 }
 
-function SetupNotes({ mode }: { mode: "personal" | "shared" }) {
+function LogoProviderPanel({ locale, company }: { locale: Locale; company?: Company }) {
+  return (
+    <div className="surface logo-provider-panel">
+      <div className="logo-provider-heading">
+        <span className="logo-provider-icon">
+          <Globe2 size={18} aria-hidden="true" />
+        </span>
+        <div>
+          <strong>{locale === "ja" ? "Logo.dev連携" : "Logo.dev provider"}</strong>
+          <small>{locale === "ja" ? "ドメインからロゴURLを解決" : "Resolve logo URL from domain"}</small>
+        </div>
+      </div>
+      <div className="logo-provider-body">
+        <DetailItem label={locale === "ja" ? "対象" : "Target"} value={company ? company.domain : "5 domains"} />
+        <DetailItem label={locale === "ja" ? "状態" : "State"} value={locale === "ja" ? "設定待ち" : "Needs key"} />
+      </div>
+      <p>
+        {locale === "ja"
+          ? "公開repoにはロゴ画像を含めず、Cloudflareの環境変数にpublishable keyを入れた時だけAPIがURLを返します。"
+          : "The public repo stores no logo files. The API returns logo URLs only when a publishable key is configured."}
+      </p>
+    </div>
+  );
+}
+
+function SetupNotes({ locale, mode }: { locale: Locale; mode: "personal" | "shared" }) {
+  const isPersonal = mode === "personal";
   return (
     <div className="surface setup-notes">
-      <h2>{mode === "personal" ? "Personal boundary" : "Shared boundary"}</h2>
+      <h2>{isPersonal ? (locale === "ja" ? "個人の境界" : "Personal boundary") : locale === "ja" ? "共有の境界" : "Shared boundary"}</h2>
       <p>
-        {mode === "personal"
-          ? "A personal room starts private and can later be converted into a shared room."
-          : "Shared rooms expose company and room-visible progress, while Vault and private progress stay personal."}
+        {isPersonal
+          ? locale === "ja"
+            ? "最初は自分だけの部屋として作り、必要になったら共有ルームに変換できます。"
+            : "A personal room starts private and can later be converted into a shared room."
+          : locale === "ja"
+            ? "企業情報と共有進捗だけをルームに出します。個人の金庫と非公開進捗は混ぜません。"
+            : "Shared rooms expose company and room-visible progress, while Vault and private progress stay personal."}
       </p>
+    </div>
+  );
+}
+
+function LocaleSwitch({ locale, setLocale }: { locale: Locale; setLocale: (locale: Locale) => void }) {
+  return (
+    <div className="language-switch" aria-label="Language">
+      <button className={locale === "ja" ? "selected" : ""} type="button" onClick={() => setLocale("ja")}>
+        日本語
+      </button>
+      <button className={locale === "en" ? "selected" : ""} type="button" onClick={() => setLocale("en")}>
+        EN
+      </button>
     </div>
   );
 }
@@ -748,37 +1115,120 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: CompanyStatus }) {
-  const label: Record<CompanyStatus, string> = {
-    research: "Research",
-    applied: "Applied",
-    interview: "Interview",
-    offer: "Offer",
-    hold: "Hold",
+function StatusBadge({ locale, status }: { locale: Locale; status: CompanyStatus }) {
+  const label: Record<CompanyStatus, LocalText> = {
+    research: { ja: "企業研究", en: "Research" },
+    applied: { ja: "応募済み", en: "Applied" },
+    interview: { ja: "面接中", en: "Interview" },
+    offer: { ja: "内定", en: "Offer" },
+    hold: { ja: "保留", en: "Hold" },
   };
-  return <span className={`status-badge ${status}`}>{label[status]}</span>;
+  return <span className={`status-badge ${status}`}>{text(label[status], locale)}</span>;
 }
 
-function titleForTab(tab: string): string {
-  const labels: Record<string, string> = {
-    overview: "Room overview",
-    companies: "Companies",
-    "company-detail": "Company detail",
-    progress: "Progress matrix",
-    kanban: "Kanban",
-    tests: "Test reports",
-    calendar: "Calendar",
-    vault: "Personal Vault",
-    settings: "Room settings",
+function titleForTab(tab: string, locale: Locale): string {
+  const labels: Record<string, LocalText> = {
+    overview: { ja: "ルーム全体", en: "Room overview" },
+    companies: { ja: "企業台帳", en: "Companies" },
+    "company-detail": { ja: "企業詳細", en: "Company detail" },
+    progress: { ja: "進捗マトリクス", en: "Progress matrix" },
+    kanban: { ja: "選考ボード", en: "Selection board" },
+    tests: { ja: "適性検査レポート", en: "Test reports" },
+    calendar: { ja: "日程", en: "Calendar" },
+    vault: { ja: "個人金庫", en: "Personal Vault" },
+    settings: { ja: "ルーム設定", en: "Room settings" },
   };
-  return labels[tab] ?? "Room";
+  return text(labels[tab] ?? { ja: "ルーム", en: "Room" }, locale);
+}
+
+function filterCompanies(rows: Company[], status: CompanyStatus | "all", industry: string, locale: Locale): Company[] {
+  return rows.filter((company) => {
+    const statusMatch = status === "all" || company.status === status;
+    const industryMatch = industry === "all" || text(company.industry, locale) === industry;
+    return statusMatch && industryMatch;
+  });
+}
+
+function sortCompanies(rows: Company[], sortMode: CompanySortMode, locale: Locale): Company[] {
+  const collator = new Intl.Collator(locale === "ja" ? "ja" : "en", {
+    numeric: true,
+    sensitivity: "base",
+  });
+  return [...rows].sort((a, b) => {
+    if (sortMode === "deadline") {
+      return Date.parse(a.dueDate) - Date.parse(b.dueDate);
+    }
+    if (sortMode === "industry") {
+      const industry = collator.compare(text(a.industry, locale), text(b.industry, locale));
+      return industry || collator.compare(text(a.name, locale), text(b.name, locale));
+    }
+    return collator.compare(text(a.name, locale), text(b.name, locale));
+  });
+}
+
+function daysUntil(dateIso: string): number {
+  const diffMs = Date.parse(dateIso) - referenceNow.getTime();
+  return Math.ceil(diffMs / 86_400_000);
+}
+
+function remainingTimeText(dateIso: string, locale: Locale): string {
+  const diffMs = Date.parse(dateIso) - referenceNow.getTime();
+  if (diffMs <= 0) {
+    return locale === "ja" ? "期限超過" : "Overdue";
+  }
+  const totalHours = Math.ceil(diffMs / 3_600_000);
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  if (days <= 0) {
+    return locale === "ja" ? `残り${hours}時間` : `${hours}h left`;
+  }
+  if (locale === "ja") {
+    return hours > 0 ? `残り${days}日${hours}時間` : `残り${days}日`;
+  }
+  return hours > 0 ? `${days}d ${hours}h left` : `${days}d left`;
+}
+
+function deadlineDateLabel(dateIso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale === "ja" ? "ja-JP" : "en-US", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(dateIso));
+}
+
+function deadlineTone(dateIso: string): "danger" | "warning" | "calm" {
+  const days = daysUntil(dateIso);
+  if (days <= 1) {
+    return "danger";
+  }
+  if (days <= 3) {
+    return "warning";
+  }
+  return "calm";
 }
 
 function initialsFor(name: string): string {
-  return name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const compact = name.replace(/\s+/g, "");
+  if (/^[\x00-\x7F]+$/.test(compact)) {
+    return compact
+      .split(/\s+/)
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+  }
+  return compact.slice(0, 2);
+}
+
+function text(value: LocalText, locale: Locale): string {
+  return value[locale];
+}
+
+function readInitialLocale(): Locale {
+  if (typeof window === "undefined") {
+    return "ja";
+  }
+  const saved = window.localStorage.getItem("job-hunt-vault-locale");
+  return saved === "en" ? "en" : "ja";
 }

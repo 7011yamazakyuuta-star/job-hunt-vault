@@ -112,6 +112,8 @@ export const companies = sqliteTable(
     roomId: text("room_id").notNull().references(() => rooms.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     domain: text("domain"),
+    industry: text("industry"),
+    priorityDeadlineAt: text("priority_deadline_at"),
     careerUrl: text("career_url"),
     mypageUrl: text("mypage_url"),
     logoUrl: text("logo_url"),
@@ -124,6 +126,33 @@ export const companies = sqliteTable(
   (table) => ({
     roomIdx: index("companies_room_idx").on(table.roomId),
     roomNameIdx: index("companies_room_name_idx").on(table.roomId, table.name),
+  }),
+);
+
+export const companyCatalog = sqliteTable(
+  "company_catalog",
+  {
+    id: text("id").primaryKey(),
+    source: text("source").notNull(),
+    sourceId: text("source_id"),
+    country: text("country").notNull().default("JP"),
+    name: text("name").notNull(),
+    nameKana: text("name_kana"),
+    normalizedName: text("normalized_name").notNull(),
+    domain: text("domain"),
+    industry: text("industry"),
+    market: text("market"),
+    ticker: text("ticker"),
+    exchange: text("exchange"),
+    logoUrl: text("logo_url"),
+    metadataJson: text("metadata_json"),
+    ...timestamps,
+  },
+  (table) => ({
+    normalizedNameIdx: index("company_catalog_normalized_name_idx").on(table.normalizedName),
+    tickerIdx: index("company_catalog_ticker_idx").on(table.ticker),
+    domainIdx: index("company_catalog_domain_idx").on(table.domain),
+    industryIdx: index("company_catalog_industry_idx").on(table.industry),
   }),
 );
 

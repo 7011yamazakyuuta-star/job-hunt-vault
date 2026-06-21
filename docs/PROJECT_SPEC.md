@@ -167,8 +167,16 @@ Vault rules:
 ### Logo API
 
 - `GET /api/logo/resolve?domain=example.com`
+- `GET /api/logo/search?q=sony&strategy=suggest`
 
-The MVP returns cached/manual metadata or a TODO status. Any future provider API key must be stored as a Workers Secret.
+The resolver returns cached logo metadata or a Logo.dev image URL when `LOGO_DEV_PUBLISHABLE_KEY` is configured. Search returns provider-backed brand candidates when `LOGO_DEV_SECRET_KEY` is configured. Provider keys must be stored outside git.
+
+### Company Catalog API
+
+- `GET /api/company-catalog/search?q=sony`
+- `GET /api/company-catalog/search?industry=自動車&sort=industry`
+
+The catalog is reference data only. It supports JPX/manual/provider-backed imports without mutating room-level applications, deadlines, notes, or Vault data.
 
 ## Database Tables
 
@@ -181,6 +189,7 @@ Required tables:
 - `room_invites`
 - `rate_limits`
 - `companies`
+- `company_catalog`
 - `test_types`
 - `company_test_reports`
 - `selection_steps`
@@ -309,7 +318,8 @@ Expected Workers Secrets:
 - `GOOGLE_CLIENT_SECRET`
 - `SESSION_SECRET`
 - `TURNSTILE_SECRET_KEY`
-- `LOGO_PROVIDER_API_KEY` optional
+- `LOGO_DEV_SECRET_KEY` optional
+- `LOGO_DEV_PUBLISHABLE_KEY` optional
 
 ## Future Issue Breakdown
 
@@ -322,5 +332,5 @@ Expected Workers Secrets:
 7. Add R2 avatar thumbnail generation or client-side resizing.
 8. Add invitation URL plus participation code flow.
 9. Add optional Turnstile to room join and invite creation.
-10. Add logo provider integration with caching and trademark-safe UI copy.
+10. Add JPX/manual import script for `company_catalog`.
 11. Add audit log writes for sensitive room and Vault metadata actions.
