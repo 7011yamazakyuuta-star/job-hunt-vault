@@ -1,0 +1,36 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "job-hunt-vault",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-06-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "job-hunt-vault",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "drizzle/migrations"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "AVATAR_BUCKET",
+      "bucket_name": "job-hunt-vault-avatars"
+    }
+  ],
+  "vars": {
+    "APP_ENV": "development",
+    "LOCAL_AUTH_ENABLED": "false",
+    "LOCAL_AUTH_EMAIL": "dev@example.com",
+    "LOCAL_AUTH_NAME": "Dev User",
+    "MAX_AVATAR_UPLOAD_BYTES": "1048576"
+  },
+  "observability": {
+    "enabled": true
+  }
+}
