@@ -182,8 +182,6 @@ const copy = {
 
 const navItems = [
   { to: "/", key: "dashboard" as const, icon: Gauge },
-  { to: "/personal/new", key: "personal" as const, icon: Plus },
-  { to: "/rooms/new", key: "shared" as const, icon: UsersRound },
   { to: "/join", key: "join" as const, icon: UserRoundPlus },
 ];
 
@@ -450,26 +448,38 @@ export default function App() {
         </nav>
 
         <section className="room-switcher" aria-label={locale === "ja" ? "ルーム" : "Rooms"}>
-          <p>{locale === "ja" ? "ルーム" : "Rooms"}</p>
-          {rooms.length ? (
-            rooms.slice(0, 3).map((room) => (
-              <Link to={`/rooms/${room.id}`} className="room-pill" key={room.id}>
-                {room.type === "personal" ? <LockKeyhole size={14} aria-hidden="true" /> : <span className="room-dot" />}
-                <span>{room.name}</span>
+          <div className="room-switcher-heading">
+            <p>{locale === "ja" ? "ルーム" : "Rooms"}</p>
+            <div className="room-quick-actions">
+              <Link className="room-action-button" to="/personal/new" title={locale === "ja" ? "個人ルームを作成" : "New personal room"}>
+                <LockKeyhole size={15} aria-hidden="true" />
               </Link>
-            ))
-          ) : (
-            <>
-              <Link to="/rooms/demo-room" className="room-pill active-room">
-                <span className="room-dot" />
-                <span>{locale === "ja" ? "2027 東京" : "Tokyo 2027"}</span>
+              <Link className="room-action-button" to="/rooms/new" title={locale === "ja" ? "共有ルームを作成" : "New shared room"}>
+                <Plus size={16} aria-hidden="true" />
               </Link>
-              <Link to="/personal/new" className="room-pill">
-                <LockKeyhole size={14} aria-hidden="true" />
-                <span>{locale === "ja" ? "個人" : "Personal"}</span>
-              </Link>
-            </>
-          )}
+            </div>
+          </div>
+          <div className="room-dock">
+            {rooms.length ? (
+              rooms.slice(0, 8).map((room) => (
+                <NavLink
+                  to={`/rooms/${room.id}`}
+                  className={({ isActive }) => `room-tile${isActive ? " active-room" : ""}`}
+                  key={room.id}
+                  title={room.name}
+                >
+                  <span className={`room-avatar ${room.type}`}>
+                    {room.type === "personal" ? <LockKeyhole size={15} aria-hidden="true" /> : initialsFor(room.name)}
+                  </span>
+                  <span>{room.name}</span>
+                </NavLink>
+              ))
+            ) : (
+              <div className="room-empty-state">
+                <span>{locale === "ja" ? "まだルームなし" : "No rooms yet"}</span>
+              </div>
+            )}
+          </div>
         </section>
 
         <LocaleSwitch locale={locale} setLocale={setLocale} />
@@ -485,7 +495,7 @@ export default function App() {
 
       <main className="content">
         <Routes>
-          <Route path="/" element={<HomePage locale={locale} user={user} />} />
+          <Route path="/" element={<HomePage locale={locale} rooms={rooms} user={user} />} />
           <Route path="/personal/new" element={<StartRoomPage locale={locale} mode="personal" />} />
           <Route path="/rooms/new" element={<StartRoomPage locale={locale} mode="shared" />} />
           <Route path="/join/:roomCode?" element={<JoinRoomPage locale={locale} />} />
@@ -504,94 +514,127 @@ export default function App() {
   );
 }
 
-function HomePage({ locale, user }: { locale: Locale; user: ApiUser | null }) {
-  const [filter, setFilter] = useState<CompanyStatus | "all">("all");
-  const [sortMode, setSortMode] = useState<CompanySortMode>("deadline");
-  const [industryFilter, setIndustryFilter] = useState<string>("all");
-  const t = copy[locale];
-  const visibleCompanies = useMemo(
-    () => sortCompanies(filterCompanies(companies, filter, industryFilter, locale), sortMode, locale),
-    [filter, industryFilter, locale, sortMode],
-  );
+function HomePage({ locale, rooms, user }: { locale: Locale; rooms: ApiRoomListItem[]; user: ApiUser | null }) {
+  if (!user) {
+    return (
+      <section className="entry-shell" aria-labelledby="entry-title">
+        <div className="entry-panel">
+          <span className="entry-mark">就</span>
+          <p className="eyebrow">Job Hunt Vault</p>
+          <h1 id="entry-title">{locale === "ja" ? "就活台帳" : "Job Hunt Vault"}</h1>
+          <p>
+            {locale === "ja"
+              ? "企業、締切、選考、認証情報をルームごとに整理します。"
+              : "Organize companies, deadlines, applications, and credentials by room."}
+          </p>
+          <div className="entry-actions">
+            <a className="primary-action" href="/api/auth/google/start">
+              <LogIn size={18} aria-hidden="true" />
+              <span>{locale === "ja" ? "Googleで始める" : "Continue with Google"}</span>
+            </a>
+            <Link className="secondary-action" to="/join">
+              <UserRoundPlus size={18} aria-hidden="true" />
+              <span>{locale === "ja" ? "招待コードで参加" : "Join with code"}</span>
+            </Link>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (!rooms.length) {
+    return (
+      <>
+        <header className="page-header compact-header">
+          <div>
+            <p className="eyebrow">{locale === "ja" ? "Workspace" : "Workspace"}</p>
+            <h1>{locale === "ja" ? "最初のルームを作成" : "Create your first room"}</h1>
+          </div>
+        </header>
+        <section className="home-action-grid" aria-label={locale === "ja" ? "ルーム作成" : "Room actions"}>
+          <HomeActionLink
+            description={locale === "ja" ? "自分だけの就活台帳を作る" : "A private job-hunt vault"}
+            icon={LockKeyhole}
+            label={locale === "ja" ? "個人ルーム" : "Personal room"}
+            to="/personal/new"
+          />
+          <HomeActionLink
+            description={locale === "ja" ? "友人やメンターと同じ台帳を見る" : "Share a vault with friends or mentors"}
+            icon={UsersRound}
+            label={locale === "ja" ? "共有ルーム" : "Shared room"}
+            to="/rooms/new"
+          />
+          <HomeActionLink
+            description={locale === "ja" ? "受け取ったコードから入る" : "Enter with an invitation code"}
+            icon={UserRoundPlus}
+            label={locale === "ja" ? "招待で参加" : "Join room"}
+            to="/join"
+          />
+        </section>
+      </>
+    );
+  }
 
   return (
     <>
-      <header className="page-header">
+      <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">{t.home.eyebrow}</p>
-          <h1>{t.home.title}</h1>
+          <p className="eyebrow">{locale === "ja" ? "Rooms" : "Rooms"}</p>
+          <h1>{locale === "ja" ? "ルームを選択" : "Choose a room"}</h1>
         </div>
-        <a className="primary-action" href="/api/auth/google/start">
-          <LogIn size={18} aria-hidden="true" />
-          <span>{user ? t.home.refresh : t.home.login}</span>
-        </a>
+        <Link className="primary-action" to="/rooms/new">
+          <Plus size={18} aria-hidden="true" />
+          <span>{locale === "ja" ? "共有ルームを追加" : "New shared room"}</span>
+        </Link>
       </header>
-
-      <section className="ops-grid" aria-label={locale === "ja" ? "本日の要点" : "Today summary"}>
-        <Metric label={locale === "ja" ? "本日締切" : "Due today"} value="2" trend={locale === "ja" ? "ES / 面接準備" : "ES / prep"} />
-        <Metric label={locale === "ja" ? "次の面接" : "Next interview"} value="6/24" trend="10:00" />
-        <Metric label={locale === "ja" ? "要確認メモ" : "Notes to review"} value="5" trend={locale === "ja" ? "共有前に確認" : "Review before sharing"} />
-        <Metric label={locale === "ja" ? "企業情報" : "Company info"} value="5" trend={locale === "ja" ? "ドメイン登録済み" : "Domains ready"} />
-      </section>
-
-      <DeadlineStrip companies={companies} locale={locale} roomId="demo-room" />
-
-      <section className="workbench">
-        <div className="surface queue-surface">
-          <PanelHeader title={t.home.queue} actionLabel={locale === "ja" ? "日程へ" : "Schedule"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
-          <PriorityList locale={locale} />
-        </div>
-        <div className="surface next-company">
-          <div>
-            <p className="eyebrow">{locale === "ja" ? "次に触る企業" : "Next company"}</p>
-            <h2>{text(companies[0].name, locale)}</h2>
-            <span>{companies[0].domain}</span>
-          </div>
-          <div className="next-company-grid">
-            <DetailItem label={locale === "ja" ? "現在地" : "Stage"} value={text(companies[0].stage, locale)} />
-            <DetailItem label={locale === "ja" ? "検査" : "Test"} value={companies[0].test} />
-          </div>
-          <Link className="secondary-action" to="/rooms/demo-room/companies/sony">
-            <BriefcaseBusiness size={17} aria-hidden="true" />
-            <span>{locale === "ja" ? "企業詳細" : "Company detail"}</span>
-          </Link>
-        </div>
-      </section>
-
-      <section className="split-layout">
-        <div className="surface table-surface">
-          <PanelHeader title={t.home.pipeline} actionLabel={t.home.newCompany} to="/rooms/demo-room/companies" icon={Plus} />
-          <CompanyControls
-            companies={companies}
-            industryFilter={industryFilter}
-            locale={locale}
-            setIndustryFilter={setIndustryFilter}
-            setSortMode={setSortMode}
-            sortMode={sortMode}
-          />
-          <SegmentedFilter locale={locale} value={filter} onChange={setFilter} />
-          <CompanyTable companies={visibleCompanies} locale={locale} roomId="demo-room" />
-        </div>
-
-        <aside className="right-rail">
-          <div className="surface">
-          <PanelHeader title={t.home.schedule} actionLabel={locale === "ja" ? "開く" : "Open"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
-            <DeadlineCalendar companies={companies.slice(0, 4)} locale={locale} roomId="demo-room" />
-          </div>
-          <LogoProviderPanel locale={locale} />
-          <div className="surface vault-summary">
-            <div>
-              <ShieldCheck size={20} aria-hidden="true" />
-              <strong>{t.home.vault}</strong>
-              <span>{locale === "ja" ? "認証情報 7件 / 共有なし" : "7 credentials / no sharing"}</span>
-            </div>
-            <Link to="/rooms/demo-room/vault" aria-label={locale === "ja" ? "金庫を開く" : "Open vault"}>
-              <ArrowRight size={18} aria-hidden="true" />
-            </Link>
-          </div>
-        </aside>
+      <section className="room-home-grid" aria-label={locale === "ja" ? "ルーム一覧" : "Room list"}>
+        {rooms.map((room) => (
+          <HomeRoomCard key={room.id} locale={locale} room={room} />
+        ))}
       </section>
     </>
+  );
+}
+
+function HomeActionLink({
+  description,
+  icon: Icon,
+  label,
+  to,
+}: {
+  description: string;
+  icon: typeof Plus;
+  label: string;
+  to: string;
+}) {
+  return (
+    <Link className="home-action-card" to={to}>
+      <span className="home-action-icon">
+        <Icon size={20} aria-hidden="true" />
+      </span>
+      <span>
+        <strong>{label}</strong>
+        <small>{description}</small>
+      </span>
+      <ArrowRight size={18} aria-hidden="true" />
+    </Link>
+  );
+}
+
+function HomeRoomCard({ locale, room }: { locale: Locale; room: ApiRoomListItem }) {
+  return (
+    <Link className="room-card" to={`/rooms/${room.id}`}>
+      <span className={`room-avatar large ${room.type}`}>
+        {room.type === "personal" ? <LockKeyhole size={18} aria-hidden="true" /> : initialsFor(room.name)}
+      </span>
+      <span>
+        <strong>{room.name}</strong>
+        <small>
+          {roomTypeLabel(room.type, locale)} / {roomRoleLabel(room.role, locale)}
+        </small>
+      </span>
+      <ArrowRight size={18} aria-hidden="true" />
+    </Link>
   );
 }
 
@@ -2583,6 +2626,20 @@ function initialsFor(name: string): string {
       .toUpperCase();
   }
   return compact.slice(0, 2);
+}
+
+function roomTypeLabel(type: ApiRoomListItem["type"], locale: Locale): string {
+  if (type === "personal") {
+    return locale === "ja" ? "個人" : "Personal";
+  }
+  return locale === "ja" ? "共有" : "Shared";
+}
+
+function roomRoleLabel(role: ApiRoomListItem["role"], locale: Locale): string {
+  if (role === "owner") {
+    return locale === "ja" ? "オーナー" : "Owner";
+  }
+  return locale === "ja" ? "メンバー" : "Member";
 }
 
 function text(value: LocalText, locale: Locale): string {
