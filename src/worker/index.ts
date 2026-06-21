@@ -1,8 +1,17 @@
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { createSession, getCurrentUser, requireUser, revokeSession, setSessionCookie } from "./auth";
+import {
+  createSession,
+  getCurrentUser,
+  requireUser,
+  revokeSession,
+  SessionConfigError,
+  setSessionCookie,
+  upsertGoogleUser,
+} from "./auth";
 import { nowIso, randomId, randomTokenHex, timingSafeEqualText } from "./crypto";
 import { getOptionalNumber, jsonError, parseJson } from "./http";
+import { exchangeGoogleCodeForProfile, OAuthConfigError, OAuthVerificationError } from "./oauth";
 import { assertCompanyInRoom, hashRoomPassphrase, requireRoomMember, verifyRoomPassphrase } from "./rooms";
 import {
   applicationCreateSchema,
@@ -102,13 +111,22 @@ app.get("/api/auth/google/callback", async (c) => {
     return jsonError(c, 400, "Missing OAuth code");
   }
 
-  return c.json(
-    {
-      error: "Google OAuth token exchange is a follow-up TODO in this MVP skeleton",
-      next: "Exchange the code, verify id_token, upsert users, create a hashed session token, and redirect to the app.",
-    },
-    501,
-  );
+  try {
+    const redirectUri = `${new URL(c.req.url).origin}/api/auth/google/callback`;
+    const profile = await exchangeGoogleCodeForProfile(c.env, code, redirectUri);
+    const user = await upsertGoogleUser(c.env, profile);
+    const session = await createSession(c.env, user.id);
+    setSessionCookie(c, session.token, session.expiresAt);
+    return c.redirect("/", 302);
+  } catch (error) {
+    if (error instanceof OAuthConfigError || error instanceof SessionConfigError) {
+      return jsonError(c, 501, "Authentication is not configured");
+    }
+    if (error instanceof OAuthVerificationError) {
+      return jsonError(c, 401, "Google authentication failed");
+    }
+    throw error;
+  }
 });
 
 app.get("/api/me", async (c) => {

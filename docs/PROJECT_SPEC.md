@@ -19,7 +19,7 @@ This first PR is a safe skeleton, not the completed product. It must include:
 - React app shell.
 - Hono API shell.
 - `/api/health`.
-- Google OAuth start/callback skeleton.
+- Google OAuth start/callback implementation.
 - Local mock user mode.
 - Routing for required frontend paths.
 - Drizzle schema.
@@ -39,6 +39,7 @@ This first PR is a safe skeleton, not the completed product. It must include:
 - Vault placeholder UI.
 - README.
 - AGENTS.md.
+- Cloudflare setup guide.
 - GitHub Actions CI.
 - Dependabot.
 - Unit test skeleton.
@@ -70,13 +71,13 @@ This first PR is a safe skeleton, not the completed product. It must include:
 - `GET /api/me`
 - `POST /api/logout`
 
-Google OAuth callback TODO:
+Google OAuth callback flow:
 
 1. Exchange authorization code for tokens.
-2. Verify `id_token`.
+2. Verify Google `id_token` signature and claims.
 3. Upsert `users`.
 4. Create a random session token.
-5. Store only `sha256(session_token)` in `user_sessions`.
+5. Store only `HMAC-SHA-256(session_token, SESSION_SECRET)` in `user_sessions`.
 6. Set HttpOnly, Secure, SameSite session cookie.
 7. Redirect to the app.
 
@@ -280,8 +281,8 @@ Required tables:
 - Do not send the Vault master passphrase to the server.
 - Store only encrypted Vault JSON in D1.
 - Do not build credential sharing in the MVP.
-- Hash Google OAuth session tokens before storage.
-- Hash Room passphrases before storage.
+- Hash Google OAuth session tokens with `SESSION_SECRET` before storage.
+- Hash Room passphrases with salted PBKDF2 before storage.
 - Use HttpOnly, Secure, SameSite cookies.
 - Validate all API input with Zod.
 - Verify room membership on every Room API.
@@ -312,15 +313,14 @@ Expected Workers Secrets:
 
 ## Future Issue Breakdown
 
-1. Complete Google OAuth callback token exchange and ID token verification.
-2. Add API integration tests with a D1 test database.
-3. Add form submission wiring for room creation and join flows.
-4. Expand company detail UI and selection-step editing.
-5. Implement progress matrix editing and private/room visibility controls.
-6. Implement kanban and calendar views.
-7. Add Vault item creation UI using browser-side encryption.
-8. Add R2 avatar thumbnail generation or client-side resizing.
-9. Add invitation URL plus participation code flow.
-10. Add optional Turnstile to room join and invite creation.
-11. Add logo provider integration with caching and trademark-safe UI copy.
-12. Add audit log writes for sensitive room and Vault metadata actions.
+1. Add API integration tests with a D1 test database.
+2. Add form submission wiring for room creation and join flows.
+3. Expand company detail UI and selection-step editing.
+4. Implement progress matrix editing and private/room visibility controls.
+5. Implement kanban and calendar views.
+6. Add Vault item creation UI using browser-side encryption.
+7. Add R2 avatar thumbnail generation or client-side resizing.
+8. Add invitation URL plus participation code flow.
+9. Add optional Turnstile to room join and invite creation.
+10. Add logo provider integration with caching and trademark-safe UI copy.
+11. Add audit log writes for sensitive room and Vault metadata actions.

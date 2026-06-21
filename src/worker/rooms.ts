@@ -1,6 +1,8 @@
-import { sha256Hex, timingSafeEqualText } from "./crypto";
+import { pbkdf2Sha256Hex, sha256Hex, timingSafeEqualText } from "./crypto";
 import { jsonError } from "./http";
 import type { AppContext, RoomMember } from "./types";
+
+const ROOM_PASSPHRASE_ITERATIONS = 120000;
 
 export async function hashRoomPassphrase(
   passphrase: string,
@@ -8,7 +10,11 @@ export async function hashRoomPassphrase(
 ): Promise<{ hash: string; salt: string }> {
   return {
     salt,
-    hash: await sha256Hex(`${salt}:${passphrase}`),
+    hash: `pbkdf2-sha256:${ROOM_PASSPHRASE_ITERATIONS}:${await pbkdf2Sha256Hex(
+      passphrase,
+      salt,
+      ROOM_PASSPHRASE_ITERATIONS,
+    )}`,
   };
 }
 
@@ -17,8 +23,32 @@ export async function verifyRoomPassphrase(
   salt: string,
   expectedHash: string,
 ): Promise<boolean> {
+  const parsed = parsePassphraseHash(expectedHash);
+  if (parsed) {
+    const candidate = `pbkdf2-sha256:${parsed.iterations}:${await pbkdf2Sha256Hex(
+      passphrase,
+      salt,
+      parsed.iterations,
+    )}`;
+    return timingSafeEqualText(candidate, expectedHash);
+  }
+
+  // Legacy compatibility for pre-PBKDF2 skeleton data.
+  const legacyCandidate = await sha256Hex(`${salt}:${passphrase}`);
+  if (await timingSafeEqualText(legacyCandidate, expectedHash)) {
+    return true;
+  }
   const candidate = await hashRoomPassphrase(passphrase, salt);
   return timingSafeEqualText(candidate.hash, expectedHash);
+}
+
+function parsePassphraseHash(hash: string): { iterations: number } | null {
+  const [algorithm, iterationsText, digest] = hash.split(":");
+  const iterations = Number(iterationsText);
+  if (algorithm !== "pbkdf2-sha256" || !Number.isInteger(iterations) || iterations < 10000 || !digest) {
+    return null;
+  }
+  return { iterations };
 }
 
 export async function requireRoomMember(

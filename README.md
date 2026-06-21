@@ -15,6 +15,7 @@ This repository is public. Do not commit real job-hunting data, account IDs, pas
 - Zod-validated Hono API routes.
 - React + Vite app shell with required frontend routes.
 - Browser-side Vault crypto module using PBKDF2 + AES-GCM.
+- Step-by-step Cloudflare setup guide in `docs/CLOUDFLARE_SETUP.md`.
 - GitHub Actions CI and Dependabot.
 
 ## Tech Stack
@@ -97,9 +98,15 @@ wrangler secret put GOOGLE_CLIENT_SECRET
 wrangler secret put SESSION_SECRET
 ```
 
-The current MVP includes the start/callback skeleton. The callback route still needs the token exchange, ID token verification, and user upsert implementation.
+The OAuth callback exchanges the authorization code, verifies Google's ID token signature and claims, upserts the user, creates a hashed session token, and redirects to the app.
 
 ## Cloudflare Setup
+
+For step-by-step setup, including what to tell Codex in this chat and what never to paste, see:
+
+```text
+docs/CLOUDFLARE_SETUP.md
+```
 
 Create a Worker, D1 database, and R2 bucket, then update `wrangler.jsonc`:
 
