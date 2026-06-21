@@ -23,6 +23,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
+  createApplication,
   createCompany,
   createPersonalRoom,
   createSharedRoom,
@@ -33,11 +34,13 @@ import {
   joinRoom,
   listRooms,
   listRoomCompanies,
+  listProgress,
   listTestReports,
   listVaultItems,
   searchCompanyCatalog,
   searchLogoCandidates,
   type ApiCompany,
+  type ApiApplication,
   type ApiRoomListItem,
   type ApiTestReport,
   type ApiUser,
@@ -336,6 +339,16 @@ const kanbanColumns = [
   { title: { ja: "応募済み", en: "Applied" }, status: "applied" as const },
   { title: { ja: "面接中", en: "Interview" }, status: "interview" as const },
   { title: { ja: "内定/条件", en: "Offer" }, status: "offer" as const },
+];
+
+const applicationStatusOptions = [
+  { value: "tracking", label: { ja: "追跡中", en: "Tracking" }, stepIndex: 0 },
+  { value: "submitted", label: { ja: "ES提出", en: "ES submitted" }, stepIndex: 1 },
+  { value: "test", label: { ja: "検査待ち", en: "Test" }, stepIndex: 2 },
+  { value: "interview", label: { ja: "面接中", en: "Interview" }, stepIndex: 3 },
+  { value: "final", label: { ja: "最終前", en: "Final" }, stepIndex: 4 },
+  { value: "offer", label: { ja: "内定/条件", en: "Offer" }, stepIndex: 4 },
+  { value: "hold", label: { ja: "保留", en: "Hold" }, stepIndex: 0 },
 ];
 
 const sampleTestReports: TestReportDisplay[] = [
@@ -761,7 +774,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
   }, [industryFilter, locale, roomId, sortMode]);
 
   useEffect(() => {
-    if (["overview", "companies", "company-detail", "calendar", "kanban", "tests"].includes(tab)) {
+    if (["overview", "companies", "company-detail", "calendar", "kanban", "progress", "tests"].includes(tab)) {
       void reloadCompanies();
     }
   }, [reloadCompanies, tab]);
@@ -801,7 +814,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
     return (
       <section className="surface">
         <PanelHeader title={locale === "ja" ? "進捗マトリクス" : "Progress matrix"} actionLabel={locale === "ja" ? "更新" : "Update"} to={`/rooms/${roomId}/progress`} icon={CheckCircle2} />
-        <ProgressMatrix locale={locale} />
+        <ProgressPanel companies={roomCompanies} locale={locale} roomId={roomId} />
       </section>
     );
   }
@@ -1257,8 +1270,132 @@ function KanbanBoard({ companies: rows, locale, roomId }: { companies: Company[]
   );
 }
 
-function ProgressMatrix({ locale }: { locale: Locale }) {
+function ProgressPanel({ companies: rows, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
+  const [applications, setApplications] = useState<ApiApplication[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadProgress = useCallback(async () => {
+    if (roomId === "demo-room") {
+      setApplications([]);
+      return;
+    }
+    setLoading(true);
+    setMessage(null);
+    try {
+      const response = await listProgress(roomId);
+      setApplications(response.applications);
+    } catch (error) {
+      setApplications([]);
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "進捗を取得できませんでした" : "Could not load progress");
+    } finally {
+      setLoading(false);
+    }
+  }, [locale, roomId]);
+
+  useEffect(() => {
+    void loadProgress();
+  }, [loadProgress]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const companyId = readFormText(data, "companyId");
+    if (!companyId) {
+      setMessage(locale === "ja" ? "企業を選択してください。" : "Select a company.");
+      return;
+    }
+    if (roomId === "demo-room") {
+      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save progress.");
+      return;
+    }
+    setSubmitting(true);
+    setMessage(null);
+    try {
+      await createApplication(roomId, {
+        companyId,
+        mypageUrl: readFormText(data, "mypageUrl"),
+        overallStatus: readFormText(data, "overallStatus") ?? "tracking",
+        visibility: readVisibility(data),
+      });
+      form.reset();
+      await loadProgress();
+      setMessage(locale === "ja" ? "進捗を保存しました。" : "Progress saved.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "保存できませんでした" : "Could not save progress");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="progress-panel">
+      <form className="progress-form" onSubmit={handleSubmit}>
+        <label>
+          {locale === "ja" ? "企業" : "Company"}
+          <select name="companyId" required>
+            <option value="">{locale === "ja" ? "選択" : "Select"}</option>
+            {rows.map((company) => (
+              <option key={company.id} value={company.id}>
+                {text(company.name, locale)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {locale === "ja" ? "状態" : "Status"}
+          <select name="overallStatus" defaultValue="tracking">
+            {applicationStatusOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {text(option.label, locale)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          {locale === "ja" ? "公開範囲" : "Visibility"}
+          <select name="visibility" defaultValue="room">
+            <option value="room">{locale === "ja" ? "ルーム共有" : "Room"}</option>
+            <option value="private">{locale === "ja" ? "自分だけ" : "Private"}</option>
+          </select>
+        </label>
+        <label>
+          MyPage URL
+          <input name="mypageUrl" placeholder="https://..." type="url" />
+        </label>
+        <button className="secondary-action" type="submit" disabled={submitting || !rows.length}>
+          <Plus size={16} aria-hidden="true" />
+          <span>{submitting ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "保存" : "Save"}</span>
+        </button>
+      </form>
+      {message ? <p className={isPositiveMessage(message) ? "form-status success" : "form-status"}>{message}</p> : null}
+      {loading ? <p className="form-status">{locale === "ja" ? "読み込み中..." : "Loading..."}</p> : null}
+      <ProgressMatrix
+        applications={applications}
+        companies={rows.length ? rows : roomId === "demo-room" ? companies : emptyCompanies}
+        locale={locale}
+        sample={roomId === "demo-room"}
+      />
+      <ProgressApplicationList applications={applications} locale={locale} />
+    </div>
+  );
+}
+
+function ProgressMatrix({
+  applications,
+  companies: rows,
+  locale,
+  sample = false,
+}: {
+  applications: ApiApplication[];
+  companies: Company[];
+  locale: Locale;
+  sample?: boolean;
+}) {
   const steps = locale === "ja" ? ["ES", "検査", "一次", "二次", "最終"] : ["ES", "Test", "1st", "2nd", "Final"];
+  const applicationByCompany = new Map(applications.map((application) => [application.company_id, application]));
   return (
     <div className="matrix" role="table" aria-label={locale === "ja" ? "進捗マトリクス" : "Progress matrix"}>
       <div className="matrix-row matrix-head" role="row">
@@ -1267,14 +1404,54 @@ function ProgressMatrix({ locale }: { locale: Locale }) {
           <span key={step}>{step}</span>
         ))}
       </div>
-      {companies.map((company, companyIndex) => (
-        <div className="matrix-row" role="row" key={company.id}>
-          <strong>{text(company.name, locale)}</strong>
-          {steps.map((step, stepIndex) => (
-            <span className={stepIndex <= companyIndex ? "matrix-cell done" : "matrix-cell"} key={step}>
-              {stepIndex <= companyIndex ? <CheckCircle2 size={15} aria-hidden="true" /> : <CircleDot size={15} aria-hidden="true" />}
-            </span>
-          ))}
+      {rows.map((company, companyIndex) => {
+        const application = applicationByCompany.get(company.id);
+        const currentStep = application ? progressStepIndex(application.overall_status) : sample ? Math.min(companyIndex, steps.length - 1) : -1;
+        return (
+          <div className="matrix-row" role="row" key={company.id}>
+            <strong>{text(company.name, locale)}</strong>
+            {steps.map((step, stepIndex) => (
+              <span className={stepIndex <= currentStep ? "matrix-cell done" : "matrix-cell"} key={step}>
+                {stepIndex <= currentStep ? <CheckCircle2 size={15} aria-hidden="true" /> : <CircleDot size={15} aria-hidden="true" />}
+              </span>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ProgressApplicationList({ applications, locale }: { applications: ApiApplication[]; locale: Locale }) {
+  if (!applications.length) {
+    return <p className="form-status">{locale === "ja" ? "まだ保存済みの進捗はありません。" : "No saved progress yet."}</p>;
+  }
+  return (
+    <div className="data-table progress-table" role="table" aria-label={locale === "ja" ? "保存済み進捗" : "Saved progress"}>
+      <div className="table-row table-head" role="row">
+        <span>{locale === "ja" ? "企業" : "Company"}</span>
+        <span>{locale === "ja" ? "状態" : "Status"}</span>
+        <span>{locale === "ja" ? "公開範囲" : "Visibility"}</span>
+        <span>{locale === "ja" ? "更新" : "Updated"}</span>
+        <span>MyPage</span>
+      </div>
+      {applications.map((application) => (
+        <div className="table-row" role="row" key={application.id}>
+          <span>
+            <strong>{application.company_name}</strong>
+          </span>
+          <span>{applicationStatusLabel(application.overall_status, locale)}</span>
+          <span>{visibilityLabel(application.visibility, locale)}</span>
+          <span>{formatDateTimeLabel(application.updated_at, locale)}</span>
+          <span>
+            {application.mypage_url ? (
+              <a href={application.mypage_url} rel="noreferrer" target="_blank">
+                {locale === "ja" ? "開く" : "Open"}
+              </a>
+            ) : (
+              locale === "ja" ? "未登録" : "Not set"
+            )}
+          </span>
         </div>
       ))}
     </div>
@@ -1851,6 +2028,15 @@ function visibilityLabel(visibility: "room" | "private", locale: Locale): string
     return locale === "ja" ? "自分だけ" : "Private";
   }
   return locale === "ja" ? "ルーム共有" : "Room";
+}
+
+function applicationStatusLabel(status: string, locale: Locale): string {
+  const option = applicationStatusOptions.find((item) => item.value === status);
+  return option ? text(option.label, locale) : status;
+}
+
+function progressStepIndex(status: string): number {
+  return applicationStatusOptions.find((item) => item.value === status)?.stepIndex ?? 0;
 }
 
 function isPositiveMessage(message: string): boolean {

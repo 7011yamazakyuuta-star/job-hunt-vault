@@ -905,6 +905,7 @@ a {
 
 .form-panel label,
 .inline-vault-form label,
+.progress-form label,
 .test-report-form label {
   display: grid;
   gap: 7px;
@@ -916,6 +917,8 @@ a {
 .form-panel input,
 .inline-vault-form input,
 .inline-vault-form textarea,
+.progress-form input,
+.progress-form select,
 .test-report-form input,
 .test-report-form select,
 .test-report-form textarea {
@@ -938,6 +941,8 @@ a {
 .form-panel input:focus,
 .inline-vault-form input:focus,
 .inline-vault-form textarea:focus,
+.progress-form input:focus,
+.progress-form select:focus,
 .test-report-form input:focus,
 .test-report-form select:focus,
 .test-report-form textarea:focus {
@@ -1129,6 +1134,31 @@ a {
 
 .matrix-cell.done {
   color: #185b50;
+}
+
+.progress-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.progress-form {
+  display: grid;
+  grid-template-columns: minmax(170px, 1fr) 150px 132px minmax(180px, 1fr) auto;
+  gap: 10px;
+  align-items: end;
+  border: 1px solid #e3e8e3;
+  border-radius: 8px;
+  background: #fbfcfa;
+  padding: 12px;
+}
+
+.progress-table .table-row {
+  grid-template-columns: minmax(190px, 1fr) 130px 110px 120px 90px;
+}
+
+.progress-table a {
+  color: #185b50;
+  font-weight: 850;
 }
 
 .report-table .table-row {
@@ -1329,6 +1359,10 @@ a {
   .test-report-form {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .progress-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -1422,6 +1456,10 @@ a {
     grid-template-columns: 1fr;
   }
 
+  .progress-form {
+    grid-template-columns: 1fr;
+  }
+
   .span-2 {
     grid-column: auto;
   }
@@ -1432,6 +1470,17 @@ a {
 
   .report-table .table-row span:nth-child(2),
   .report-table .table-row span:nth-child(3) {
+    display: block;
+  }
+
+  .progress-table .table-row {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-table .table-row span:nth-child(2),
+  .progress-table .table-row span:nth-child(3),
+  .progress-table .table-row span:nth-child(4),
+  .progress-table .table-row span:nth-child(5) {
     display: block;
   }
 

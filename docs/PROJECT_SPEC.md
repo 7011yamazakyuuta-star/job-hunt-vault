@@ -17,7 +17,7 @@ Firebase is not used. The implementation target is Cloudflare Workers + D1 + R2.
 This first PR is a safe skeleton, not the completed product. It must include:
 
 - React app shell.
-- Frontend API client for room creation, room join, company listing, company creation, catalog lookup, logo candidate search, test reports, and Vault items.
+- Frontend API client for room creation, room join, company listing, company creation, catalog lookup, logo candidate search, application progress, test reports, and Vault items.
 - Hono API shell.
 - `/api/health`.
 - Google OAuth start/callback implementation.

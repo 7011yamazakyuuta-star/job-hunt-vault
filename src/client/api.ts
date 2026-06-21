@@ -123,6 +123,28 @@ export type VaultItemCreateInput = {
   encryptedPayload: string;
 };
 
+export type ApiApplication = {
+  id: string;
+  company_id: string;
+  company_name: string;
+  user_id: string;
+  overall_status: string;
+  visibility: "room" | "private";
+  mypage_url: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationCreateInput = {
+  companyId: string;
+  overallStatus?: string;
+  visibility: "room" | "private";
+  mypageUrl?: string;
+  personalNoteEncrypted?: string;
+};
+
+export type ApplicationPatchInput = Omit<Partial<ApplicationCreateInput>, "companyId">;
+
 export async function getMe(): Promise<{ user: ApiUser | null }> {
   return apiGet("/api/me");
 }
@@ -212,6 +234,28 @@ export async function createVaultItem(
   return apiPost(`/api/rooms/${encodeURIComponent(roomId)}/vault/items`, input);
 }
 
+export async function listProgress(roomId: string): Promise<{ applications: ApiApplication[] }> {
+  return apiGet(`/api/rooms/${encodeURIComponent(roomId)}/progress`);
+}
+
+export async function createApplication(
+  roomId: string,
+  input: ApplicationCreateInput,
+): Promise<{ applicationId: string }> {
+  return apiPost(`/api/rooms/${encodeURIComponent(roomId)}/applications`, input);
+}
+
+export async function updateApplication(
+  roomId: string,
+  applicationId: string,
+  input: ApplicationPatchInput,
+): Promise<{ ok: true }> {
+  return apiPatch(
+    `/api/rooms/${encodeURIComponent(roomId)}/applications/${encodeURIComponent(applicationId)}`,
+    input,
+  );
+}
+
 async function apiGet<T>(path: string): Promise<T> {
   return apiRequest(path);
 }
@@ -220,6 +264,13 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return apiRequest(path, {
     body: JSON.stringify(body),
     method: "POST",
+  });
+}
+
+async function apiPatch<T>(path: string, body: unknown): Promise<T> {
+  return apiRequest(path, {
+    body: JSON.stringify(body),
+    method: "PATCH",
   });
 }
 
