@@ -399,6 +399,20 @@ Cloudflare上で手で触るところ:
 
 その後、公式データを `company_catalog` にimportします。詳細な設計は `docs/DATA_CATALOG.md` を見てください。
 
+CSVをSQLに変換する例:
+
+```bash
+npm run catalog:sql -- --input ./work/jpx.csv --out ./work/company_catalog.sql
+```
+
+D1へ投入する例:
+
+```bash
+npx wrangler d1 execute job-hunt-vault --remote --file ./work/company_catalog.sql
+```
+
+`./work/jpx.csv` や `./work/company_catalog.sql` は作業用ファイルです。実データやDB exportをpublic repoへcommitしないでください。
+
 この段階でCodexに伝えてよいこと:
 
 ```text

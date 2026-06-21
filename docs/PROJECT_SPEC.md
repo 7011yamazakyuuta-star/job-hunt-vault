@@ -17,6 +17,7 @@ Firebase is not used. The implementation target is Cloudflare Workers + D1 + R2.
 This first PR is a safe skeleton, not the completed product. It must include:
 
 - React app shell.
+- Frontend API client for room creation, room join, company listing, company creation, catalog lookup, and logo candidate search.
 - Hono API shell.
 - `/api/health`.
 - Google OAuth start/callback implementation.
@@ -32,6 +33,7 @@ This first PR is a safe skeleton, not the completed product. It must include:
 - Room join.
 - Avatar selector/upload skeleton.
 - Company CRUD.
+- Company catalog CSV-to-SQL import helper.
 - Selection step skeleton.
 - Test report skeleton.
 - Progress skeleton.
@@ -90,6 +92,7 @@ Local auth is allowed only with:
 ### Rooms
 
 - `POST /api/rooms/personal`
+- `GET /api/rooms`
 - `POST /api/rooms`
 - `POST /api/rooms/join`
 - `GET /api/rooms/:roomId`
@@ -179,6 +182,10 @@ The resolver returns cached logo metadata or a Logo.dev image URL when `LOGO_DEV
 - `GET /api/company-catalog/search?q=7203&sort=ticker`
 
 The catalog is reference data only. It supports JPX/manual/provider-backed imports without mutating room-level applications, deadlines, notes, or Vault data.
+
+Catalog import helper:
+
+- `npm run catalog:sql -- --input ./work/jpx.csv --out ./work/company_catalog.sql`
 
 ## Database Tables
 

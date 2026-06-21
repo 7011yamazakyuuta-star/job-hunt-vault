@@ -140,6 +140,7 @@ app.post("/api/logout", async (c) => {
   return c.json({ ok: true });
 });
 
+app.use("/api/rooms", requireUser);
 app.use("/api/rooms/*", requireUser);
 app.use("/api/logo/*", requireUser);
 app.use("/api/company-catalog/*", requireUser);
@@ -180,6 +181,21 @@ app.post("/api/rooms", async (c) => {
   });
 
   return c.json({ room }, 201);
+});
+
+app.get("/api/rooms", async (c) => {
+  const user = c.get("user");
+  const rooms = await c.env.DB.prepare(
+    `SELECT r.id, r.room_code, r.name, r.type, r.join_enabled, rm.role, rm.joined_at
+     FROM rooms r
+     INNER JOIN room_members rm ON rm.room_id = r.id
+     WHERE rm.user_id = ?
+     ORDER BY rm.joined_at DESC`,
+  )
+    .bind(user.id)
+    .all();
+
+  return c.json({ rooms: rooms.results ?? [] });
 });
 
 app.post("/api/rooms/join", async (c) => {

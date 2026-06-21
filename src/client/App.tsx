@@ -19,9 +19,26 @@ import {
   UserRoundPlus,
   UsersRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
-import { getHealth, getMe, type ApiUser } from "./api";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
+import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import {
+  createCompany,
+  createPersonalRoom,
+  createSharedRoom,
+  getHealth,
+  getMe,
+  joinRoom,
+  listRooms,
+  listRoomCompanies,
+  searchCompanyCatalog,
+  searchLogoCandidates,
+  type ApiCompany,
+  type ApiRoomListItem,
+  type ApiUser,
+  type CatalogCompany,
+  type LogoSearchResult,
+} from "./api";
 
 type Locale = "ja" | "en";
 type CompanyStatus = "research" | "applied" | "interview" | "offer" | "hold";
@@ -38,7 +55,7 @@ type Company = {
   nameKana: string;
   domain: string;
   industry: LocalText;
-  dueDate: string;
+  dueDate: string | null;
   ticker: string | null;
   exchange: string | null;
   status: CompanyStatus;
@@ -229,6 +246,30 @@ const companies: Company[] = [
   },
 ];
 
+const accentCycle: Company["accent"][] = ["blue", "green", "amber", "rose", "violet"];
+const emptyCompanies: Company[] = [];
+
+function mapApiCompany(row: ApiCompany, index: number): Company {
+  const dueDate = row.priority_deadline_at;
+  return {
+    id: row.id,
+    name: { ja: row.name, en: row.name },
+    nameKana: row.name_kana ?? row.name,
+    domain: row.domain ?? "",
+    industry: { ja: row.industry ?? "未分類", en: row.industry ?? "Uncategorized" },
+    dueDate,
+    ticker: row.ticker,
+    exchange: row.exchange,
+    status: "research",
+    stage: { ja: "企業研究", en: "Research" },
+    owner: { ja: "自分", en: "Me" },
+    due: dueDate ? { ja: deadlineDateLabel(dueDate, "ja"), en: deadlineDateLabel(dueDate, "en") } : { ja: "未登録", en: "Not set" },
+    test: "未登録",
+    visibility: { ja: "共有", en: "Room" },
+    accent: accentCycle[index % accentCycle.length],
+  };
+}
+
 const calendarItems = [
   {
     time: "10:00",
@@ -282,6 +323,7 @@ const referenceNow = new Date("2026-06-21T09:00:00+09:00");
 
 export default function App() {
   const [locale, setLocale] = useState<Locale>(() => readInitialLocale());
+  const [rooms, setRooms] = useState<ApiRoomListItem[]>([]);
   const [user, setUser] = useState<ApiUser | null>(null);
   const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
 
@@ -291,12 +333,15 @@ export default function App() {
 
   useEffect(() => {
     let active = true;
-    void Promise.allSettled([getMe(), getHealth()]).then(([meResult, healthResult]) => {
+    void Promise.allSettled([getMe(), getHealth(), listRooms()]).then(([meResult, healthResult, roomsResult]) => {
       if (!active) {
         return;
       }
       if (meResult.status === "fulfilled") {
         setUser(meResult.value.user);
+      }
+      if (roomsResult.status === "fulfilled") {
+        setRooms(roomsResult.value.rooms);
       }
       setHealth(healthResult.status === "fulfilled" && healthResult.value.ok ? "online" : "offline");
     });
@@ -329,14 +374,25 @@ export default function App() {
 
         <section className="room-switcher" aria-label={locale === "ja" ? "ルーム" : "Rooms"}>
           <p>{locale === "ja" ? "ルーム" : "Rooms"}</p>
-          <Link to="/rooms/demo-room" className="room-pill active-room">
-            <span className="room-dot" />
-            <span>{locale === "ja" ? "2027 東京" : "Tokyo 2027"}</span>
-          </Link>
-          <Link to="/rooms/personal" className="room-pill">
-            <LockKeyhole size={14} aria-hidden="true" />
-            <span>{locale === "ja" ? "個人" : "Personal"}</span>
-          </Link>
+          {rooms.length ? (
+            rooms.slice(0, 3).map((room) => (
+              <Link to={`/rooms/${room.id}`} className="room-pill" key={room.id}>
+                {room.type === "personal" ? <LockKeyhole size={14} aria-hidden="true" /> : <span className="room-dot" />}
+                <span>{room.name}</span>
+              </Link>
+            ))
+          ) : (
+            <>
+              <Link to="/rooms/demo-room" className="room-pill active-room">
+                <span className="room-dot" />
+                <span>{locale === "ja" ? "2027 東京" : "Tokyo 2027"}</span>
+              </Link>
+              <Link to="/personal/new" className="room-pill">
+                <LockKeyhole size={14} aria-hidden="true" />
+                <span>{locale === "ja" ? "個人" : "Personal"}</span>
+              </Link>
+            </>
+          )}
         </section>
 
         <LocaleSwitch locale={locale} setLocale={setLocale} />
@@ -401,7 +457,7 @@ function HomePage({ locale, user }: { locale: Locale; user: ApiUser | null }) {
         <Metric label={locale === "ja" ? "企業情報" : "Company info"} value="5" trend={locale === "ja" ? "ドメイン登録済み" : "Domains ready"} />
       </section>
 
-      <DeadlineStrip companies={companies} locale={locale} />
+      <DeadlineStrip companies={companies} locale={locale} roomId="demo-room" />
 
       <section className="workbench">
         <div className="surface queue-surface">
@@ -429,6 +485,7 @@ function HomePage({ locale, user }: { locale: Locale; user: ApiUser | null }) {
         <div className="surface table-surface">
           <PanelHeader title={t.home.pipeline} actionLabel={t.home.newCompany} to="/rooms/demo-room/companies" icon={Plus} />
           <CompanyControls
+            companies={companies}
             industryFilter={industryFilter}
             locale={locale}
             setIndustryFilter={setIndustryFilter}
@@ -436,13 +493,13 @@ function HomePage({ locale, user }: { locale: Locale; user: ApiUser | null }) {
             sortMode={sortMode}
           />
           <SegmentedFilter locale={locale} value={filter} onChange={setFilter} />
-          <CompanyTable companies={visibleCompanies} locale={locale} />
+          <CompanyTable companies={visibleCompanies} locale={locale} roomId="demo-room" />
         </div>
 
         <aside className="right-rail">
           <div className="surface">
           <PanelHeader title={t.home.schedule} actionLabel={locale === "ja" ? "開く" : "Open"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
-            <DeadlineCalendar companies={companies.slice(0, 4)} locale={locale} />
+            <DeadlineCalendar companies={companies.slice(0, 4)} locale={locale} roomId="demo-room" />
           </div>
           <LogoProviderPanel locale={locale} />
           <div className="surface vault-summary">
@@ -462,6 +519,9 @@ function HomePage({ locale, user }: { locale: Locale; user: ApiUser | null }) {
 }
 
 function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "shared" }) {
+  const navigate = useNavigate();
+  const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const isPersonal = mode === "personal";
   const title = isPersonal
     ? locale === "ja"
@@ -470,6 +530,28 @@ function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "s
     : locale === "ja"
       ? "共有ルームを作成"
       : "New shared room";
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+    const data = new FormData(event.currentTarget);
+    const name = readFormText(data, "name") || (isPersonal ? "Personal room" : "Shared room");
+    const displayName = readFormText(data, "displayName");
+    try {
+      const result = isPersonal
+        ? await createPersonalRoom({ name, displayName })
+        : await createSharedRoom({
+            displayName,
+            name,
+            passphrase: readFormText(data, "passphrase") ?? "",
+          });
+      navigate(`/rooms/${result.room.id}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "作成できませんでした" : "Could not create room");
+    } finally {
+      setSubmitting(false);
+    }
+  };
   return (
     <>
       <header className="page-header compact-header">
@@ -479,7 +561,7 @@ function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "s
         </div>
       </header>
       <div className="setup-layout">
-        <form className="form-panel">
+        <form className="form-panel" onSubmit={handleSubmit}>
           <label>
             {locale === "ja" ? "ルーム名" : "Room name"}
             <input name="name" placeholder={isPersonal ? (locale === "ja" ? "自分の就活" : "My job hunt") : "2027 東京"} />
@@ -487,16 +569,17 @@ function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "s
           {!isPersonal ? (
             <label>
               {locale === "ja" ? "合言葉" : "Passphrase"}
-              <input name="passphrase" type="password" placeholder={locale === "ja" ? "8文字以上" : "At least 8 characters"} />
+              <input name="passphrase" type="password" minLength={8} required placeholder={locale === "ja" ? "8文字以上" : "At least 8 characters"} />
             </label>
           ) : null}
           <label>
             {locale === "ja" ? "表示名" : "Display name"}
             <input name="displayName" placeholder={locale === "ja" ? "ルーム内で表示する名前" : "Name shown in this room"} />
           </label>
-          <button className="primary-action" type="button">
+          {message ? <p className="form-status danger">{message}</p> : null}
+          <button className="primary-action" type="submit" disabled={submitting}>
             <Plus size={18} aria-hidden="true" />
-            <span>{locale === "ja" ? "作成" : "Create"}</span>
+            <span>{submitting ? (locale === "ja" ? "作成中" : "Creating") : locale === "ja" ? "作成" : "Create"}</span>
           </button>
         </form>
         <SetupNotes locale={locale} mode={mode} />
@@ -507,6 +590,27 @@ function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "s
 
 function JoinRoomPage({ locale }: { locale: Locale }) {
   const { roomCode } = useParams();
+  const navigate = useNavigate();
+  const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+    const data = new FormData(event.currentTarget);
+    try {
+      const result = await joinRoom({
+        displayName: readFormText(data, "displayName"),
+        passphrase: readFormText(data, "passphrase") ?? "",
+        roomCode: readFormText(data, "roomCode"),
+      });
+      navigate(`/rooms/${result.roomId}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "参加できませんでした" : "Could not join room");
+    } finally {
+      setSubmitting(false);
+    }
+  };
   return (
     <>
       <header className="page-header compact-header">
@@ -516,22 +620,23 @@ function JoinRoomPage({ locale }: { locale: Locale }) {
         </div>
       </header>
       <div className="setup-layout">
-        <form className="form-panel">
+        <form className="form-panel" onSubmit={handleSubmit}>
           <label>
             {locale === "ja" ? "ルームコード" : "Room code"}
-            <input name="roomCode" defaultValue={roomCode ?? ""} placeholder="rm_..." />
+            <input name="roomCode" defaultValue={roomCode ?? ""} required placeholder="rm_..." />
           </label>
           <label>
             {locale === "ja" ? "合言葉" : "Passphrase"}
-            <input name="passphrase" type="password" />
+            <input name="passphrase" type="password" minLength={8} required />
           </label>
           <label>
             {locale === "ja" ? "表示名" : "Display name"}
             <input name="displayName" placeholder={locale === "ja" ? "ルーム内で表示する名前" : "Name shown in this room"} />
           </label>
-          <button className="primary-action" type="button">
+          {message ? <p className="form-status danger">{message}</p> : null}
+          <button className="primary-action" type="submit" disabled={submitting}>
             <UserRoundPlus size={18} aria-hidden="true" />
-            <span>{locale === "ja" ? "参加" : "Join"}</span>
+            <span>{submitting ? (locale === "ja" ? "参加中" : "Joining") : locale === "ja" ? "参加" : "Join"}</span>
           </button>
         </form>
         <div className="surface setup-notes">
@@ -549,22 +654,23 @@ function JoinRoomPage({ locale }: { locale: Locale }) {
 
 function RoomPage({ locale, tab }: { locale: Locale; tab: string }) {
   const { roomId, companyId } = useParams();
+  const activeRoomId = roomId ?? "demo-room";
   const title = useMemo(() => titleForTab(tab, locale), [locale, tab]);
 
   return (
     <>
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">{locale === "ja" ? `ルーム ${roomId}` : `Room ${roomId}`}</p>
+          <p className="eyebrow">{locale === "ja" ? `ルーム ${activeRoomId}` : `Room ${activeRoomId}`}</p>
           <h1>{title}</h1>
         </div>
-        <Link className="secondary-action" to="/rooms/demo-room/companies">
+        <Link className="secondary-action" to={`/rooms/${activeRoomId}/companies`}>
           <Search size={17} aria-hidden="true" />
           <span>{locale === "ja" ? "検索" : "Search"}</span>
         </Link>
       </header>
-      <RoomNav locale={locale} roomId={roomId ?? "demo-room"} />
-      <RoomContent locale={locale} tab={tab} companyId={companyId} />
+      <RoomNav locale={locale} roomId={activeRoomId} />
+      <RoomContent locale={locale} roomId={activeRoomId} tab={tab} companyId={companyId} />
     </>
   );
 }
@@ -583,39 +689,79 @@ function RoomNav({ locale, roomId }: { locale: Locale; roomId: string }) {
   );
 }
 
-function RoomContent({ locale, tab, companyId }: { locale: Locale; tab: string; companyId?: string }) {
+function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomId: string; tab: string; companyId?: string }) {
+  const [sortMode, setSortMode] = useState<CompanySortMode>("deadline");
+  const [industryFilter, setIndustryFilter] = useState<string>("all");
+  const [liveCompanies, setLiveCompanies] = useState<Company[] | null>(null);
+  const [loadMessage, setLoadMessage] = useState<string | null>(null);
+  const reloadCompanies = useCallback(async () => {
+    setLoadMessage(null);
+    try {
+      const result = await listRoomCompanies(roomId, {
+        industry: industryFilter,
+        sort: sortMode,
+      });
+      setLiveCompanies(result.companies.map(mapApiCompany));
+    } catch (error) {
+      setLiveCompanies(null);
+      setLoadMessage(error instanceof Error ? error.message : locale === "ja" ? "企業一覧を取得できませんでした" : "Could not load companies");
+    }
+  }, [industryFilter, locale, roomId, sortMode]);
+
+  useEffect(() => {
+    if (["overview", "companies", "company-detail", "calendar", "kanban"].includes(tab)) {
+      void reloadCompanies();
+    }
+  }, [reloadCompanies, tab]);
+
+  const roomCompanies = liveCompanies ?? (roomId === "demo-room" ? companies : emptyCompanies);
+  const filteredCompanies = useMemo(
+    () => sortCompanies(filterCompanies(roomCompanies, "all", industryFilter, locale), sortMode, locale),
+    [industryFilter, locale, roomCompanies, sortMode],
+  );
+
   if (tab === "companies") {
     return (
       <section className="surface table-surface">
-        <PanelHeader title={locale === "ja" ? "企業台帳" : "Companies"} actionLabel={locale === "ja" ? "追加" : "Add"} to="/rooms/demo-room/companies" icon={Plus} />
-        <CompanyIntakePanel locale={locale} />
-        <CompanyTable companies={companies} locale={locale} />
+        <PanelHeader title={locale === "ja" ? "企業台帳" : "Companies"} actionLabel={locale === "ja" ? "追加" : "Add"} to={`/rooms/${roomId}/companies`} icon={Plus} />
+        <CatalogSearchPanel locale={locale} onImported={reloadCompanies} roomId={roomId} />
+        <CompanyIntakePanel locale={locale} onCreated={reloadCompanies} roomId={roomId} />
+        <CompanyControls
+          companies={roomCompanies}
+          industryFilter={industryFilter}
+          locale={locale}
+          setIndustryFilter={setIndustryFilter}
+          setSortMode={setSortMode}
+          sortMode={sortMode}
+        />
+        {loadMessage ? <p className="form-status">{roomId === "demo-room" ? (locale === "ja" ? "プレビュー用の企業台帳を表示しています。" : "Showing preview company records.") : loadMessage}</p> : null}
+        <CompanyTable companies={filteredCompanies} locale={locale} roomId={roomId} />
       </section>
     );
   }
 
   if (tab === "company-detail") {
-    const company = companies.find((item) => item.id === companyId) ?? companies[0];
+    const company = roomCompanies.find((item) => item.id === companyId) ?? companies.find((item) => item.id === companyId) ?? companies[0];
     return <CompanyDetail company={company} locale={locale} />;
   }
 
   if (tab === "progress") {
     return (
       <section className="surface">
-        <PanelHeader title={locale === "ja" ? "進捗マトリクス" : "Progress matrix"} actionLabel={locale === "ja" ? "更新" : "Update"} to="/rooms/demo-room/progress" icon={CheckCircle2} />
+        <PanelHeader title={locale === "ja" ? "進捗マトリクス" : "Progress matrix"} actionLabel={locale === "ja" ? "更新" : "Update"} to={`/rooms/${roomId}/progress`} icon={CheckCircle2} />
         <ProgressMatrix locale={locale} />
       </section>
     );
   }
 
   if (tab === "kanban") {
-    return <KanbanBoard locale={locale} />;
+    return <KanbanBoard companies={roomCompanies} locale={locale} roomId={roomId} />;
   }
 
   if (tab === "tests") {
     return (
       <section className="surface table-surface">
-        <PanelHeader title={locale === "ja" ? "適性検査レポート" : "Test reports"} actionLabel={locale === "ja" ? "追加" : "Add report"} to="/rooms/demo-room/tests" icon={FlaskConical} />
+        <PanelHeader title={locale === "ja" ? "適性検査レポート" : "Test reports"} actionLabel={locale === "ja" ? "追加" : "Add report"} to={`/rooms/${roomId}/tests`} icon={FlaskConical} />
         <TestReportTable locale={locale} />
       </section>
     );
@@ -624,8 +770,8 @@ function RoomContent({ locale, tab, companyId }: { locale: Locale; tab: string; 
   if (tab === "calendar") {
     return (
       <section className="surface calendar-surface">
-        <PanelHeader title={locale === "ja" ? "日程" : "Calendar"} actionLabel={locale === "ja" ? "予定追加" : "New event"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
-        <DeadlineCalendar companies={companies} locale={locale} large />
+        <PanelHeader title={locale === "ja" ? "日程" : "Calendar"} actionLabel={locale === "ja" ? "予定追加" : "New event"} to={`/rooms/${roomId}/calendar`} icon={CalendarDays} />
+        <DeadlineCalendar companies={roomCompanies} locale={locale} roomId={roomId} large />
         <Timeline locale={locale} />
       </section>
     );
@@ -642,12 +788,12 @@ function RoomContent({ locale, tab, companyId }: { locale: Locale; tab: string; 
   return (
     <section className="split-layout">
       <div className="surface table-surface">
-        <PanelHeader title={locale === "ja" ? "ルーム全体" : "Room overview"} actionLabel={locale === "ja" ? "企業追加" : "New company"} to="/rooms/demo-room/companies" icon={Plus} />
-        <CompanyTable companies={companies.slice(0, 4)} locale={locale} />
+        <PanelHeader title={locale === "ja" ? "ルーム全体" : "Room overview"} actionLabel={locale === "ja" ? "企業追加" : "New company"} to={`/rooms/${roomId}/companies`} icon={Plus} />
+        <CompanyTable companies={roomCompanies.slice(0, 4)} locale={locale} roomId={roomId} />
       </div>
       <aside className="right-rail">
         <div className="surface">
-          <PanelHeader title={locale === "ja" ? "今日" : "Today"} actionLabel={locale === "ja" ? "開く" : "Open"} to="/rooms/demo-room/calendar" icon={CalendarDays} />
+          <PanelHeader title={locale === "ja" ? "今日" : "Today"} actionLabel={locale === "ja" ? "開く" : "Open"} to={`/rooms/${roomId}/calendar`} icon={CalendarDays} />
           <Timeline locale={locale} />
         </div>
         <LogoProviderPanel locale={locale} />
@@ -656,7 +802,7 @@ function RoomContent({ locale, tab, companyId }: { locale: Locale; tab: string; 
   );
 }
 
-function CompanyTable({ companies: rows, locale }: { companies: Company[]; locale: Locale }) {
+function CompanyTable({ companies: rows, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
   return (
     <div className="data-table" role="table" aria-label={locale === "ja" ? "企業" : "Companies"}>
       <div className="table-row table-head" role="row">
@@ -668,7 +814,7 @@ function CompanyTable({ companies: rows, locale }: { companies: Company[]; local
         <span>{locale === "ja" ? "担当" : "Owner"}</span>
       </div>
       {rows.map((company) => (
-        <Link className="table-row" role="row" key={company.id} to={`/rooms/demo-room/companies/${company.id}`}>
+        <Link className="table-row" role="row" key={company.id} to={`/rooms/${roomId}/companies/${company.id}`}>
           <span className="company-cell">
             <span className={`logo-chip ${company.accent}`}>{initialsFor(text(company.name, locale))}</span>
             <span>
@@ -735,19 +881,21 @@ function CompanyDetail({ company, locale }: { company: Company; locale: Locale }
 }
 
 function CompanyControls({
+  companies: rows,
   industryFilter,
   locale,
   setIndustryFilter,
   setSortMode,
   sortMode,
 }: {
+  companies: Company[];
   industryFilter: string;
   locale: Locale;
   setIndustryFilter: (value: string) => void;
   setSortMode: (value: CompanySortMode) => void;
   sortMode: CompanySortMode;
 }) {
-  const industries = Array.from(new Set(companies.map((company) => text(company.industry, locale))));
+  const industries = Array.from(new Set(rows.map((company) => text(company.industry, locale)).filter(Boolean)));
   const sortOptions: Array<{ value: CompanySortMode; label: LocalText }> = [
     { value: "deadline", label: { ja: "締切順", en: "Deadline" } },
     { value: "kana", label: { ja: "50音順", en: "A-Z" } },
@@ -783,40 +931,147 @@ function CompanyControls({
   );
 }
 
-function CompanyIntakePanel({ locale }: { locale: Locale }) {
+function CatalogSearchPanel({ locale, onImported, roomId }: { locale: Locale; onImported: () => void; roomId: string }) {
+  const [message, setMessage] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState<CatalogCompany[]>([]);
+  const [searching, setSearching] = useState(false);
+  const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSearching(true);
+    setMessage(null);
+    try {
+      const response = await searchCompanyCatalog(query);
+      setResults(response.companies);
+      if (!response.companies.length) {
+        setMessage(locale === "ja" ? "辞書に候補がありません。" : "No catalog matches.");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "辞書を検索できませんでした" : "Could not search catalog");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const addCatalogCompany = async (company: CatalogCompany) => {
+    setMessage(null);
+    try {
+      await createCompany(roomId, {
+        domain: company.domain ?? undefined,
+        exchange: company.exchange ?? undefined,
+        industry: company.industry ?? undefined,
+        logoUrl: company.logo_url ?? undefined,
+        name: company.name,
+        nameKana: company.name_kana ?? undefined,
+        ticker: company.ticker ?? undefined,
+      });
+      setMessage(locale === "ja" ? "辞書から台帳に追加しました。" : "Added from catalog.");
+      onImported();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "追加できませんでした" : "Could not add company");
+    }
+  };
+
   return (
-    <form className="company-intake-panel">
+    <div className="catalog-search-panel">
+      <form className="catalog-search-form" onSubmit={handleSearch}>
+        <label>
+          {locale === "ja" ? "企業辞書" : "Company catalog"}
+          <input
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={locale === "ja" ? "企業名・証券コードで検索" : "Search name or ticker"}
+            value={query}
+          />
+        </label>
+        <button className="secondary-action" type="submit" disabled={searching}>
+          <Search size={16} aria-hidden="true" />
+          <span>{searching ? (locale === "ja" ? "検索中" : "Searching") : locale === "ja" ? "検索" : "Search"}</span>
+        </button>
+      </form>
+      {message ? <p className={message.includes("追加") || message.includes("Added") ? "form-status success" : "form-status"}>{message}</p> : null}
+      {results.length ? (
+        <div className="catalog-result-list">
+          {results.slice(0, 6).map((company) => (
+            <div className="catalog-result-row" key={company.id}>
+              <span>
+                <strong>{company.name}</strong>
+                <small>{[company.industry, company.market, formatCatalogTicker(company)].filter(Boolean).join(" / ")}</small>
+              </span>
+              <button className="secondary-action" type="button" onClick={() => void addCatalogCompany(company)}>
+                <Plus size={15} aria-hidden="true" />
+                <span>{locale === "ja" ? "追加" : "Add"}</span>
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CompanyIntakePanel({ locale, onCreated, roomId }: { locale: Locale; onCreated: () => void; roomId: string }) {
+  const [message, setMessage] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setMessage(null);
+    const form = event.currentTarget;
+    const data = new FormData(form);
+    const deadline = readFormText(data, "priorityDeadlineAt");
+    try {
+      await createCompany(roomId, {
+        domain: readFormText(data, "domain"),
+        exchange: readFormText(data, "exchange"),
+        industry: readFormText(data, "industry"),
+        name: readFormText(data, "name") ?? "",
+        nameKana: readFormText(data, "nameKana"),
+        priorityDeadlineAt: deadline ? new Date(deadline).toISOString() : undefined,
+        ticker: readFormText(data, "ticker"),
+      });
+      form.reset();
+      setMessage(locale === "ja" ? "企業を追加しました。" : "Company added.");
+      onCreated();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "保存できませんでした" : "Could not save company");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  return (
+    <form className="company-intake-panel" onSubmit={handleSubmit}>
       <label>
         {locale === "ja" ? "企業名" : "Company"}
-        <input placeholder={locale === "ja" ? "例: ソニーグループ" : "Example: Sony Group"} />
+        <input name="name" required placeholder={locale === "ja" ? "例: ソニーグループ" : "Example: Sony Group"} />
       </label>
       <label>
         {locale === "ja" ? "読み" : "Reading"}
-        <input placeholder={locale === "ja" ? "そにーぐるーぷ" : "sony group"} />
+        <input name="nameKana" placeholder={locale === "ja" ? "そにーぐるーぷ" : "sony group"} />
       </label>
       <label>
         {locale === "ja" ? "業種" : "Industry"}
-        <input placeholder={locale === "ja" ? "例: 電機・エンタメ" : "Example: Electronics"} />
+        <input name="industry" placeholder={locale === "ja" ? "例: 電機・エンタメ" : "Example: Electronics"} />
       </label>
       <label>
         {locale === "ja" ? "直近締切" : "Priority deadline"}
-        <input type="datetime-local" />
+        <input name="priorityDeadlineAt" type="datetime-local" />
       </label>
       <label>
         {locale === "ja" ? "証券コード" : "Ticker"}
-        <input placeholder={locale === "ja" ? "6758" : "6758"} />
+        <input name="ticker" placeholder={locale === "ja" ? "6758" : "6758"} />
       </label>
       <label>
         {locale === "ja" ? "取引所" : "Exchange"}
-        <input placeholder="TSE" />
+        <input name="exchange" placeholder="TSE" />
       </label>
       <label>
         {locale === "ja" ? "ドメイン" : "Domain"}
-        <input placeholder="example.com" />
+        <input name="domain" placeholder="example.com" />
       </label>
-      <button className="secondary-action" type="button">
+      {message ? <p className={message.includes("追加") || message.includes("added") ? "form-status success" : "form-status danger"}>{message}</p> : null}
+      <button className="secondary-action" type="submit" disabled={submitting}>
         <Plus size={16} aria-hidden="true" />
-        <span>{locale === "ja" ? "下書き追加" : "Add draft"}</span>
+        <span>{submitting ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "保存" : "Save"}</span>
       </button>
     </form>
   );
@@ -870,8 +1125,8 @@ function PriorityList({ locale }: { locale: Locale }) {
   );
 }
 
-function DeadlineStrip({ companies, locale }: { companies: Company[]; locale: Locale }) {
-  const urgent = sortCompanies(companies, "deadline", locale).filter((company) => daysUntil(company.dueDate) <= 3);
+function DeadlineStrip({ companies, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
+  const urgent = sortCompanies(companies, "deadline", locale).filter((company) => company.dueDate && daysUntil(company.dueDate) <= 3);
   return (
     <section className="deadline-strip" aria-label={locale === "ja" ? "締切アラート" : "Deadline alerts"}>
       <div>
@@ -880,7 +1135,7 @@ function DeadlineStrip({ companies, locale }: { companies: Company[]; locale: Lo
       </div>
       <div className="deadline-chip-row">
         {urgent.map((company) => (
-          <Link className={`deadline-chip ${deadlineTone(company.dueDate)}`} key={company.id} to={`/rooms/demo-room/companies/${company.id}`}>
+          <Link className={`deadline-chip ${deadlineTone(company.dueDate)}`} key={company.id} to={`/rooms/${roomId}/companies/${company.id}`}>
             <span>{text(company.name, locale)}</span>
             <strong>{remainingTimeText(company.dueDate, locale)}</strong>
           </Link>
@@ -890,13 +1145,13 @@ function DeadlineStrip({ companies, locale }: { companies: Company[]; locale: Lo
   );
 }
 
-function DeadlineCalendar({ companies, locale, large = false }: { companies: Company[]; locale: Locale; large?: boolean }) {
+function DeadlineCalendar({ companies, locale, roomId, large = false }: { companies: Company[]; locale: Locale; roomId: string; large?: boolean }) {
   const ordered = sortCompanies(companies, "deadline", locale);
   return (
     <div className={large ? "deadline-calendar large" : "deadline-calendar"}>
       {ordered.map((company) => (
-        <Link className={`deadline-row ${deadlineTone(company.dueDate)}`} key={company.id} to={`/rooms/demo-room/companies/${company.id}`}>
-          <time dateTime={company.dueDate}>{deadlineDateLabel(company.dueDate, locale)}</time>
+        <Link className={`deadline-row ${deadlineTone(company.dueDate)}`} key={company.id} to={`/rooms/${roomId}/companies/${company.id}`}>
+          <time dateTime={company.dueDate ?? undefined}>{company.dueDate ? deadlineDateLabel(company.dueDate, locale) : locale === "ja" ? "未登録" : "Not set"}</time>
           <span>
             <strong>{text(company.name, locale)}</strong>
             <small>
@@ -926,19 +1181,19 @@ function Timeline({ locale }: { locale: Locale }) {
   );
 }
 
-function KanbanBoard({ locale }: { locale: Locale }) {
+function KanbanBoard({ companies: rows, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
   return (
     <section className="kanban-board" aria-label={locale === "ja" ? "選考ボード" : "Kanban"}>
       {kanbanColumns.map((column) => (
         <div className="kanban-column" key={column.status}>
           <div className="kanban-header">
             <strong>{text(column.title, locale)}</strong>
-            <span>{companies.filter((company) => company.status === column.status).length}</span>
+            <span>{rows.filter((company) => company.status === column.status).length}</span>
           </div>
-          {companies
+          {rows
             .filter((company) => company.status === column.status)
             .map((company) => (
-              <Link className="kanban-card" key={company.id} to={`/rooms/demo-room/companies/${company.id}`}>
+              <Link className="kanban-card" key={company.id} to={`/rooms/${roomId}/companies/${company.id}`}>
                 <span className={`logo-chip ${company.accent}`}>{initialsFor(text(company.name, locale))}</span>
                 <strong>{text(company.name, locale)}</strong>
                 <small>{text(company.stage, locale)}</small>
@@ -1051,6 +1306,41 @@ function SettingsPanel({ locale }: { locale: Locale }) {
 }
 
 function LogoProviderPanel({ locale, company }: { locale: Locale; company?: Company }) {
+  const [query, setQuery] = useState(company ? text(company.name, locale) : "");
+  const [message, setMessage] = useState<string | null>(null);
+  const [results, setResults] = useState<LogoSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+
+  useEffect(() => {
+    setQuery(company ? text(company.name, locale) : "");
+    setResults([]);
+    setMessage(null);
+  }, [company, locale]);
+
+  const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      setMessage(locale === "ja" ? "2文字以上で検索してください。" : "Search with at least 2 characters.");
+      return;
+    }
+    setSearching(true);
+    setMessage(null);
+    try {
+      const response = await searchLogoCandidates(trimmed);
+      setResults(response.results);
+      if (response.status === "provider-unconfigured") {
+        setMessage(locale === "ja" ? "候補検索はCloudflare設定後に使えます。" : "Candidate search is available after Cloudflare setup.");
+      } else if (!response.results.length) {
+        setMessage(locale === "ja" ? "候補が見つかりませんでした。" : "No candidates found.");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : locale === "ja" ? "検索できませんでした" : "Could not search");
+    } finally {
+      setSearching(false);
+    }
+  };
+
   return (
     <div className="surface logo-provider-panel">
       <div className="logo-provider-heading">
@@ -1062,15 +1352,36 @@ function LogoProviderPanel({ locale, company }: { locale: Locale; company?: Comp
           <small>{locale === "ja" ? "企業名・ドメインから探す" : "Find by company name or domain"}</small>
         </div>
       </div>
+      <form className="logo-search-form" onSubmit={handleSearch}>
+        <input
+          aria-label={locale === "ja" ? "企業名またはドメイン" : "Company name or domain"}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={locale === "ja" ? "企業名またはドメイン" : "Company name or domain"}
+          value={query}
+        />
+        <button className="secondary-action" type="submit" disabled={searching}>
+          <Search size={16} aria-hidden="true" />
+          <span>{searching ? (locale === "ja" ? "検索中" : "Searching") : locale === "ja" ? "検索" : "Search"}</span>
+        </button>
+      </form>
       <div className="logo-provider-body">
         <DetailItem label={locale === "ja" ? "対象" : "Target"} value={company ? company.domain : "5 domains"} />
-        <DetailItem label={locale === "ja" ? "状態" : "State"} value={locale === "ja" ? "利用準備中" : "Setup pending"} />
+        <DetailItem label={locale === "ja" ? "候補" : "Candidates"} value={results.length ? `${results.length}` : locale === "ja" ? "未検索" : "Not searched"} />
       </div>
-      <p>
-        {locale === "ja"
-          ? "ロゴ画像そのものは保存せず、企業名やドメインから候補を探して選べるようにします。"
-          : "Logo files are not bundled. Search candidates by company name or domain and choose the right one."}
-      </p>
+      {message ? <p className="form-status">{message}</p> : null}
+      {results.length ? (
+        <ul className="logo-result-list">
+          {results.map((result) => (
+            <li key={`${result.domain}-${result.name}`}>
+              <img alt="" src={result.logoUrl} />
+              <span>
+                <strong>{result.name}</strong>
+                <small>{result.domain}</small>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -1188,7 +1499,7 @@ function sortCompanies(rows: Company[], sortMode: CompanySortMode, locale: Local
   });
   return [...rows].sort((a, b) => {
     if (sortMode === "deadline") {
-      return Date.parse(a.dueDate) - Date.parse(b.dueDate);
+      return deadlineSortValue(a.dueDate) - deadlineSortValue(b.dueDate);
     }
     if (sortMode === "industry") {
       const industry = collator.compare(text(a.industry, locale), text(b.industry, locale));
@@ -1205,12 +1516,31 @@ function formatTicker(company: Company): string | null {
   return company.exchange ? `${company.exchange}:${company.ticker}` : company.ticker;
 }
 
+function formatCatalogTicker(company: CatalogCompany): string | null {
+  if (!company.ticker) {
+    return null;
+  }
+  return company.exchange ? `${company.exchange}:${company.ticker}` : company.ticker;
+}
+
+function readFormText(data: FormData, key: string): string | undefined {
+  const value = data.get(key);
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function deadlineSortValue(dateIso: string | null): number {
+  return dateIso ? Date.parse(dateIso) : Number.MAX_SAFE_INTEGER;
+}
+
 function daysUntil(dateIso: string): number {
   const diffMs = Date.parse(dateIso) - referenceNow.getTime();
   return Math.ceil(diffMs / 86_400_000);
 }
 
-function remainingTimeText(dateIso: string, locale: Locale): string {
+function remainingTimeText(dateIso: string | null, locale: Locale): string {
+  if (!dateIso) {
+    return locale === "ja" ? "未登録" : "Not set";
+  }
   const diffMs = Date.parse(dateIso) - referenceNow.getTime();
   if (diffMs <= 0) {
     return locale === "ja" ? "期限超過" : "Overdue";
@@ -1236,7 +1566,10 @@ function deadlineDateLabel(dateIso: string, locale: Locale): string {
   }).format(new Date(dateIso));
 }
 
-function deadlineTone(dateIso: string): "danger" | "warning" | "calm" {
+function deadlineTone(dateIso: string | null): "danger" | "warning" | "calm" | "" {
+  if (!dateIso) {
+    return "";
+  }
   const days = daysUntil(dateIso);
   if (days <= 1) {
     return "danger";

@@ -10,6 +10,7 @@ This repository is public. Do not commit real job-hunting data, account IDs, pas
 - Explicit local-development mock user mode.
 - Personal room creation for one-person tracking.
 - Shared room creation and join flow using Room ID/code plus passphrase.
+- Joined room listing for the app sidebar.
 - D1 schema and migration for users, sessions, rooms, members, companies, progress, events, tasks, vaults, logos, and audit logs.
 - Company catalog schema for JPX/manual/provider-backed reference data.
 - R2 avatar binding skeleton with authenticated Worker delivery.
@@ -164,6 +165,12 @@ wrangler secret put LOGO_DEV_PUBLISHABLE_KEY
 `company_catalog` stores reference data such as JPX-listed company names, readings, ticker codes, market segments, industries, candidate domains, and provider metadata. It is separate from room-level `companies`, so importing or refreshing official data does not modify user progress, deadlines, notes, or Vault data. Room-level companies can keep copied identifiers such as `name_kana`, `ticker`, and `exchange` alongside user-managed deadlines and notes.
 
 Use `GET /api/company-catalog/search` for local catalog lookup and `GET /api/logo/search` for provider-backed logo candidates. Catalog search supports industry filtering and `sort=industry` or `sort=ticker`. See `docs/DATA_CATALOG.md`.
+
+To convert a JPX/manual CSV into D1-ready SQL:
+
+```bash
+npm run catalog:sql -- --input ./work/jpx.csv --out ./work/company_catalog.sql
+```
 
 ## Turnstile Setup
 
