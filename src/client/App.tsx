@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   avatarPhotoUrl,
   createApplication,
@@ -499,6 +499,8 @@ export default function App() {
           <Route path="/personal/new" element={<StartRoomPage locale={locale} mode="personal" />} />
           <Route path="/rooms/new" element={<StartRoomPage locale={locale} mode="shared" />} />
           <Route path="/join/:roomCode?" element={<JoinRoomPage locale={locale} />} />
+          <Route path="/api/auth/google/start" element={<OAuthRouteRecovery locale={locale} mode="start" />} />
+          <Route path="/api/auth/google/callback" element={<OAuthRouteRecovery locale={locale} mode="callback" />} />
           <Route path="/rooms/:roomId" element={<RoomPage locale={locale} tab="overview" />} />
           <Route path="/rooms/:roomId/companies" element={<RoomPage locale={locale} tab="companies" />} />
           <Route path="/rooms/:roomId/companies/:companyId" element={<RoomPage locale={locale} tab="company-detail" />} />
@@ -511,6 +513,41 @@ export default function App() {
         </Routes>
       </main>
     </div>
+  );
+}
+
+function OAuthRouteRecovery({ locale, mode }: { locale: Locale; mode: "callback" | "start" }) {
+  const location = useLocation();
+  const targetLabel = mode === "start" ? (locale === "ja" ? "Google認証" : "Google sign-in") : locale === "ja" ? "ログイン完了処理" : "sign-in callback";
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (!params.has("_jhv_retry")) {
+      params.set("_jhv_retry", String(Date.now()));
+      const nextUrl = `${location.pathname}?${params.toString()}`;
+      window.location.replace(nextUrl);
+    }
+  }, [location.pathname, location.search]);
+
+  const fallbackHref = `${location.pathname}${location.search ? `${location.search}&` : "?"}_jhv_retry=${Date.now()}`;
+
+  return (
+    <section className="entry-shell" aria-labelledby="oauth-recovery-title">
+      <div className="entry-panel recovery-panel">
+        <span className="entry-mark">就</span>
+        <p className="eyebrow">OAuth</p>
+        <h1 id="oauth-recovery-title">{locale === "ja" ? `${targetLabel}へ移動中` : `Opening ${targetLabel}`}</h1>
+        <p>
+          {locale === "ja"
+            ? "ブラウザが認証APIを画面として開いたため、もう一度安全に移動しています。"
+            : "The browser opened the auth API as a page, so we are retrying the redirect safely."}
+        </p>
+        <a className="primary-action" href={fallbackHref}>
+          <LogIn size={18} aria-hidden="true" />
+          <span>{locale === "ja" ? "もう一度移動する" : "Retry sign-in"}</span>
+        </a>
+      </div>
+    </section>
   );
 }
 
