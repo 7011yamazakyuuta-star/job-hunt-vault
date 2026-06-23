@@ -124,7 +124,18 @@ app.get("/api/auth/google/callback", async (c) => {
       return jsonError(c, 501, "Authentication is not configured");
     }
     if (error instanceof OAuthVerificationError) {
-      return jsonError(c, 401, "Google authentication failed");
+      console.error(
+        JSON.stringify({
+          message: "google oauth callback failed",
+          reason: error.failureCode,
+          detail: error.message,
+          metadata: error.metadata,
+          path: new URL(c.req.url).pathname,
+        }),
+      );
+      const redirectUrl = new URL("/", c.req.url);
+      redirectUrl.searchParams.set("auth_error", error.failureCode);
+      return c.redirect(redirectUrl.toString(), 302);
     }
     throw error;
   }

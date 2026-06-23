@@ -552,6 +552,9 @@ function OAuthRouteRecovery({ locale, mode }: { locale: Locale; mode: "callback"
 }
 
 function HomePage({ locale, rooms, user }: { locale: Locale; rooms: ApiRoomListItem[]; user: ApiUser | null }) {
+  const location = useLocation();
+  const authErrorMessage = authErrorMessageFor(new URLSearchParams(location.search).get("auth_error"), locale);
+
   if (!user) {
     return (
       <section className="entry-shell" aria-labelledby="entry-title">
@@ -564,6 +567,12 @@ function HomePage({ locale, rooms, user }: { locale: Locale; rooms: ApiRoomListI
               ? "企業、締切、選考、認証情報をルームごとに整理します。"
               : "Organize companies, deadlines, applications, and credentials by room."}
           </p>
+          {authErrorMessage ? (
+            <div className="auth-error-notice" role="alert">
+              <strong>{locale === "ja" ? "Googleログインに失敗しました" : "Google sign-in failed"}</strong>
+              <span>{authErrorMessage}</span>
+            </div>
+          ) : null}
           <div className="entry-actions">
             <a className="primary-action" href="/api/auth/google/start">
               <LogIn size={18} aria-hidden="true" />
@@ -631,6 +640,30 @@ function HomePage({ locale, rooms, user }: { locale: Locale; rooms: ApiRoomListI
       </section>
     </>
   );
+}
+
+function authErrorMessageFor(error: string | null, locale: Locale): string | null {
+  if (!error) {
+    return null;
+  }
+  if (error === "token_exchange_failed") {
+    return locale === "ja"
+      ? "Cloudflare Secrets の GOOGLE_CLIENT_SECRET が、Google Cloud のOAuthクライアントと一致しているか確認してください。"
+      : "Check that GOOGLE_CLIENT_SECRET in Cloudflare Secrets belongs to the selected Google OAuth client.";
+  }
+  if (error === "id_token_audience_invalid") {
+    return locale === "ja"
+      ? "Cloudflare Secrets の GOOGLE_CLIENT_ID が、Google Cloud のOAuthクライアントIDと一致しているか確認してください。"
+      : "Check that GOOGLE_CLIENT_ID in Cloudflare Secrets matches the Google OAuth client ID.";
+  }
+  if (error === "google_email_unverified") {
+    return locale === "ja"
+      ? "Googleアカウントのメール確認が完了しているか確認してください。"
+      : "Check that the Google account email address is verified.";
+  }
+  return locale === "ja"
+    ? "Google OAuth設定を確認してください。詳しい理由はCloudflareのWorkerログに記録されます。"
+    : "Check the Google OAuth settings. The detailed reason is recorded in the Cloudflare Worker logs.";
 }
 
 function HomeActionLink({
