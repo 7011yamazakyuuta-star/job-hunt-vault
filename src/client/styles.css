@@ -400,6 +400,28 @@ a {
   line-height: 1.75;
 }
 
+.auth-error-notice {
+  display: grid;
+  gap: 4px;
+  max-width: 36rem;
+  border: 1px solid #f0b8a8;
+  border-radius: 8px;
+  background: #fff7f4;
+  padding: 12px 14px;
+  color: #7f1d1d;
+}
+
+.auth-error-notice strong {
+  color: #58151c;
+  font-size: 0.95rem;
+}
+
+.auth-error-notice span {
+  color: #7f1d1d;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
 .entry-actions {
   display: flex;
   flex-wrap: wrap;

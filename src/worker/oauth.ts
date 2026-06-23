@@ -57,9 +57,14 @@ export class OAuthConfigError extends Error {
 }
 
 export class OAuthVerificationError extends Error {
-  constructor(message: string) {
+  readonly failureCode: string;
+  readonly metadata: Record<string, string | number | boolean | null>;
+
+  constructor(message: string, failureCode = "google_verification_failed", metadata: Record<string, string | number | boolean | null> = {}) {
     super(message);
     this.name = "OAuthVerificationError";
+    this.failureCode = failureCode;
+    this.metadata = metadata;
   }
 }
 
@@ -90,12 +95,24 @@ export async function exchangeGoogleCodeForProfile(
   });
 
   if (!response.ok) {
-    throw new OAuthVerificationError("Google token exchange failed");
+    const googleError = await readGoogleTokenError(response);
+    throw new OAuthVerificationError(
+      googleError.error ? `Google token exchange failed: ${googleError.error}` : "Google token exchange failed",
+      "token_exchange_failed",
+      {
+        status: response.status,
+        googleError: googleError.error,
+        googleErrorDescription: googleError.description,
+      },
+    );
   }
 
   const parsed = tokenResponseSchema.safeParse(await response.json());
   if (!parsed.success) {
-    throw new OAuthVerificationError("Google token response did not include a valid id_token");
+    throw new OAuthVerificationError(
+      "Google token response did not include a valid id_token",
+      "token_response_invalid",
+    );
   }
 
   return verifyGoogleIdToken(parsed.data.id_token, clientId);
@@ -108,12 +125,12 @@ export async function verifyGoogleIdToken(
 ): Promise<GoogleUserProfile> {
   const parts = idToken.split(".");
   if (parts.length !== 3) {
-    throw new OAuthVerificationError("Malformed id_token");
+    throw new OAuthVerificationError("Malformed id_token", "id_token_malformed");
   }
 
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
   if (!encodedHeader || !encodedPayload || !encodedSignature) {
-    throw new OAuthVerificationError("Malformed id_token");
+    throw new OAuthVerificationError("Malformed id_token", "id_token_malformed");
   }
 
   const header = parseJwtPart(encodedHeader, jwtHeaderSchema);
@@ -125,17 +142,17 @@ export async function verifyGoogleIdToken(
     },
   });
   if (!jwksResponse.ok) {
-    throw new OAuthVerificationError("Google JWKS fetch failed");
+    throw new OAuthVerificationError("Google JWKS fetch failed", "jwks_fetch_failed");
   }
 
   const jwks = jwksSchema.safeParse(await jwksResponse.json());
   if (!jwks.success) {
-    throw new OAuthVerificationError("Google JWKS response was invalid");
+    throw new OAuthVerificationError("Google JWKS response was invalid", "jwks_response_invalid");
   }
 
   const jwk = jwks.data.keys.find((candidate) => candidate.kid === header.kid);
   if (!jwk) {
-    throw new OAuthVerificationError("Google signing key was not found");
+    throw new OAuthVerificationError("Google signing key was not found", "jwks_key_not_found");
   }
 
   const publicKey = await crypto.subtle.importKey(
@@ -154,7 +171,7 @@ export async function verifyGoogleIdToken(
   );
 
   if (!validSignature) {
-    throw new OAuthVerificationError("Google id_token signature was invalid");
+    throw new OAuthVerificationError("Google id_token signature was invalid", "id_token_signature_invalid");
   }
 
   validateGooglePayload(payload, clientId);
@@ -172,12 +189,12 @@ function parseJwtPart<TSchema extends z.ZodType>(part: string, schema: TSchema):
   try {
     decoded = JSON.parse(decodeUtf8(base64UrlDecode(part))) as unknown;
   } catch {
-    throw new OAuthVerificationError("Malformed id_token JSON");
+    throw new OAuthVerificationError("Malformed id_token JSON", "id_token_json_malformed");
   }
 
   const parsed = schema.safeParse(decoded);
   if (!parsed.success) {
-    throw new OAuthVerificationError("Malformed id_token claims");
+    throw new OAuthVerificationError("Malformed id_token claims", "id_token_claims_invalid");
   }
   return parsed.data;
 }
@@ -186,20 +203,37 @@ function validateGooglePayload(payload: z.infer<typeof jwtPayloadSchema>, client
   const now = Math.floor(Date.now() / 1000);
 
   if (!GOOGLE_ISSUERS.has(payload.iss)) {
-    throw new OAuthVerificationError("Google id_token issuer was invalid");
+    throw new OAuthVerificationError("Google id_token issuer was invalid", "id_token_issuer_invalid");
   }
   if (payload.aud !== clientId) {
-    throw new OAuthVerificationError("Google id_token audience was invalid");
+    throw new OAuthVerificationError("Google id_token audience was invalid", "id_token_audience_invalid");
   }
   if (payload.exp <= now - CLOCK_SKEW_SECONDS) {
-    throw new OAuthVerificationError("Google id_token expired");
+    throw new OAuthVerificationError("Google id_token expired", "id_token_expired");
   }
   if (payload.iat && payload.iat > now + CLOCK_SKEW_SECONDS) {
-    throw new OAuthVerificationError("Google id_token was issued in the future");
+    throw new OAuthVerificationError("Google id_token was issued in the future", "id_token_issued_in_future");
   }
 
   const emailVerified = payload.email_verified === true || payload.email_verified === "true";
   if (!emailVerified) {
-    throw new OAuthVerificationError("Google email was not verified");
+    throw new OAuthVerificationError("Google email was not verified", "google_email_unverified");
   }
+}
+
+async function readGoogleTokenError(response: Response): Promise<{ error: string | null; description: string | null }> {
+  try {
+    const body = (await response.json()) as { error?: unknown; error_description?: unknown };
+    return {
+      error: typeof body.error === "string" ? sanitizeOAuthLogValue(body.error) : null,
+      description:
+        typeof body.error_description === "string" ? sanitizeOAuthLogValue(body.error_description) : null,
+    };
+  } catch {
+    return { error: null, description: null };
+  }
+}
+
+function sanitizeOAuthLogValue(value: string): string {
+  return value.replaceAll(/[^a-zA-Z0-9 _.:/-]/g, "").slice(0, 180);
 }
