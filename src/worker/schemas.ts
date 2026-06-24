@@ -81,6 +81,8 @@ export const companyCreateSchema = z.object({
   priorityDeadlineAt: z.string().datetime().optional(),
   ticker: optionalUpperText(40),
   exchange: optionalUpperText(40),
+  marketSegment: optionalText(80),
+  legalType: optionalText(80),
   careerUrl: optionalUrl,
   mypageUrl: optionalUrl,
   logoUrl: optionalUrl,

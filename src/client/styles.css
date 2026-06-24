@@ -1,25 +1,25 @@
 :root {
-  --bg: #f5f6f3;
+  --bg: #f4f6f8;
   --surface: #ffffff;
-  --surface-muted: #f9faf7;
-  --line: #d9dfd6;
-  --line-strong: #c7d0c5;
-  --text: #20242a;
-  --text-soft: #4f5a52;
-  --muted: #6b756d;
-  --muted-strong: #566158;
-  --sidebar: #202620;
-  --sidebar-elevated: #293229;
-  --sidebar-active: #343f36;
-  --sidebar-line: #3a443b;
-  --sidebar-text: #f7f8f4;
-  --sidebar-muted: #a8b3aa;
-  --accent: #2f6b57;
-  --accent-strong: #285b4a;
-  --accent-soft: #e5f0eb;
+  --surface-muted: #f7f9fb;
+  --line: #d8dee6;
+  --line-strong: #bcc7d3;
+  --text: #151922;
+  --text-soft: #44505c;
+  --muted: #697583;
+  --muted-strong: #566270;
+  --sidebar: #121720;
+  --sidebar-elevated: #1c2532;
+  --sidebar-active: #253246;
+  --sidebar-line: #303b4d;
+  --sidebar-text: #f8fafc;
+  --sidebar-muted: #aab4c2;
+  --accent: #14796f;
+  --accent-strong: #0f655d;
+  --accent-soft: #e3f2ef;
   --danger: #8f1d1d;
   --danger-soft: #fff3ef;
-  --shadow-soft: 0 18px 40px rgba(29, 39, 32, 0.08);
+  --shadow-soft: 0 14px 32px rgba(21, 25, 34, 0.08);
   color: var(--text);
   background: var(--bg);
   font-family:
@@ -603,6 +603,7 @@ a {
   border: 1px solid var(--line);
   border-radius: 7px;
   background: var(--surface);
+  box-shadow: 0 1px 0 rgba(21, 25, 34, 0.02);
 }
 
 .surface {
@@ -694,8 +695,8 @@ a {
 .detail-layout,
 .setup-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 336px;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 14px;
   align-items: start;
 }
 
@@ -706,6 +707,10 @@ a {
 
 .table-surface {
   overflow: hidden;
+}
+
+.workspace-overview .overview-primary {
+  min-height: 334px;
 }
 
 .panel-header {
@@ -789,12 +794,12 @@ a {
 
 .company-intake-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(126px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr));
   gap: 10px;
   align-items: end;
   border: 1px solid var(--line);
   border-radius: 7px;
-  background: var(--surface-muted);
+  background: #fbfcfd;
   margin-bottom: 12px;
   padding: 12px;
 }
@@ -877,17 +882,20 @@ a {
   font-weight: 700;
 }
 
-.company-intake-panel input {
+.company-intake-panel input,
+.company-intake-panel select {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line-strong);
   border-radius: 6px;
+  background: var(--surface);
   color: var(--text);
   padding: 0 10px;
 }
 
 .catalog-search-form input:focus,
 .company-intake-panel input:focus,
+.company-intake-panel select:focus,
 .industry-select select:focus {
   border-color: var(--accent);
   outline: 3px solid var(--accent-soft);
@@ -896,6 +904,10 @@ a {
 .company-intake-panel .secondary-action {
   min-height: 38px;
   justify-content: center;
+}
+
+.company-intake-panel .form-status {
+  grid-column: 1 / -2;
 }
 
 .avatar-form .secondary-action,
@@ -925,6 +937,33 @@ a {
   color: #8d3f48;
 }
 
+.password-label {
+  min-width: 0;
+}
+
+.password-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: center;
+}
+
+.password-field input {
+  border-radius: 6px 0 0 6px;
+}
+
+.password-field button {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-left: 0;
+  border-radius: 0 6px 6px 0;
+  background: var(--surface);
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
 .segmented-control button {
   min-height: 30px;
   border-radius: 5px;
@@ -948,6 +987,7 @@ a {
   border: 1px solid var(--line);
   border-radius: 7px;
   overflow: hidden;
+  background: var(--surface);
 }
 
 .table-row,
@@ -996,10 +1036,17 @@ a {
 
 .table-head {
   min-height: 34px;
-  background: var(--surface-muted);
+  background: #f5f7f9;
   color: var(--muted);
   font-size: 0.76rem;
   font-weight: 700;
+}
+
+.table-empty-row {
+  display: grid;
+  min-height: 210px;
+  border-top: 1px solid #e6ebf0;
+  padding: 18px;
 }
 
 .company-cell {
@@ -1220,6 +1267,43 @@ a {
   gap: 3px;
 }
 
+.schedule-preview {
+  min-height: 210px;
+}
+
+.empty-state {
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 8px;
+  min-height: 100%;
+  color: var(--text-soft);
+}
+
+.empty-state-icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #f8fafc;
+  color: var(--accent);
+}
+
+.empty-state strong {
+  color: var(--text);
+  font-size: 0.98rem;
+}
+
+.empty-state p {
+  max-width: 34rem;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+
 .vault-summary {
   display: flex;
   align-items: center;
@@ -1317,20 +1401,22 @@ a {
 .tab-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
-  margin-bottom: 12px;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 14px;
+  padding-bottom: 8px;
 }
 
 .tab-item {
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-height: 36px;
-  border: 1px solid var(--line);
+  min-height: 34px;
+  border: 1px solid transparent;
   border-radius: 6px;
-  background: var(--surface);
-  color: #3d4945;
-  padding: 0 10px;
+  background: transparent;
+  color: #495564;
+  padding: 0 9px;
   transition:
     border-color 140ms ease,
     color 140ms ease,
@@ -1339,9 +1425,13 @@ a {
 
 .tab-item.active,
 .tab-item:hover {
-  border-color: #c6a05e;
-  color: #75501d;
-  background: #fff8ec;
+  border-color: #cfd8e3;
+  color: #101722;
+  background: #ffffff;
+}
+
+.tab-item.active {
+  box-shadow: 0 1px 0 rgba(21, 25, 34, 0.04);
 }
 
 .detail-main {
@@ -1449,6 +1539,29 @@ a {
 
 .detail-item strong {
   overflow-wrap: anywhere;
+}
+
+.detail-empty-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 7px;
+  background: var(--surface-muted);
+  padding: 12px;
+  color: var(--text-soft);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.detail-empty-note a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  font-weight: 720;
 }
 
 .step-list {

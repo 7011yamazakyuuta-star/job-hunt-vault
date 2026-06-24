@@ -117,6 +117,8 @@ export const companies = sqliteTable(
     priorityDeadlineAt: text("priority_deadline_at"),
     ticker: text("ticker"),
     exchange: text("exchange"),
+    marketSegment: text("market_segment"),
+    legalType: text("legal_type"),
     careerUrl: text("career_url"),
     mypageUrl: text("mypage_url"),
     logoUrl: text("logo_url"),

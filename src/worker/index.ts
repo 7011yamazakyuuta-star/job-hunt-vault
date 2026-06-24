@@ -14,6 +14,7 @@ import { getOptionalNumber, jsonError, parseJson } from "./http";
 import { normalizeLogoDomain, resolveLogoForDomain, searchLogoCandidates } from "./logos";
 import { exchangeGoogleCodeForProfile, OAuthConfigError, OAuthVerificationError } from "./oauth";
 import { assertCompanyInRoom, hashRoomPassphrase, requireRoomMember, verifyRoomPassphrase } from "./rooms";
+import { searchFallbackCompanyCatalog } from "./companyCatalogFallback";
 import {
   applicationCreateSchema,
   applicationPatchSchema,
@@ -490,6 +491,7 @@ app.get("/api/rooms/:roomId/companies", async (c) => {
   if (!membership.ok) {
     return membership.response;
   }
+  await ensureCompanyProfileColumns(c.env.DB);
   const sort = c.req.query("sort");
   const industry = c.req.query("industry")?.trim() || null;
   const orderBy =
@@ -499,7 +501,7 @@ app.get("/api/rooms/:roomId/companies", async (c) => {
         ? "industry IS NULL ASC, industry ASC, name_kana IS NULL ASC, name_kana ASC, name ASC"
         : "priority_deadline_at IS NULL ASC, priority_deadline_at ASC, name_kana IS NULL ASC, name_kana ASC, name ASC";
   const result = await c.env.DB.prepare(
-    `SELECT id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, career_url, mypage_url, logo_url, memo, created_at, updated_at
+    `SELECT id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, market_segment, legal_type, career_url, mypage_url, logo_url, memo, created_at, updated_at
      FROM companies
      WHERE room_id = ? AND deleted_at IS NULL
        AND (? IS NULL OR industry = ?)
@@ -520,13 +522,14 @@ app.post("/api/rooms/:roomId/companies", async (c) => {
   if (!parsed.ok) {
     return parsed.response;
   }
+  await ensureCompanyProfileColumns(c.env.DB);
 
   const now = nowIso();
   const id = randomId("company");
   await c.env.DB.prepare(
     `INSERT INTO companies
-      (id, room_id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, career_url, mypage_url, logo_url, logo_r2_key, memo, created_by_user_id, deleted_at, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?)`,
+      (id, room_id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, market_segment, legal_type, career_url, mypage_url, logo_url, logo_r2_key, memo, created_by_user_id, deleted_at, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, ?, ?)`,
   )
     .bind(
       id,
@@ -538,6 +541,8 @@ app.post("/api/rooms/:roomId/companies", async (c) => {
       parsed.data.priorityDeadlineAt ?? null,
       parsed.data.ticker ?? null,
       parsed.data.exchange ?? null,
+      parsed.data.marketSegment ?? null,
+      parsed.data.legalType ?? null,
       parsed.data.careerUrl ?? null,
       parsed.data.mypageUrl ?? null,
       parsed.data.logoUrl ?? null,
@@ -558,8 +563,9 @@ app.get("/api/rooms/:roomId/companies/:companyId", async (c) => {
   if (!membership.ok) {
     return membership.response;
   }
+  await ensureCompanyProfileColumns(c.env.DB);
   const company = await c.env.DB.prepare(
-    `SELECT id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, career_url, mypage_url, logo_url, memo, created_at, updated_at
+    `SELECT id, name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, market_segment, legal_type, career_url, mypage_url, logo_url, memo, created_at, updated_at
      FROM companies
      WHERE id = ? AND room_id = ? AND deleted_at IS NULL
      LIMIT 1`,
@@ -583,8 +589,9 @@ app.patch("/api/rooms/:roomId/companies/:companyId", async (c) => {
   if (!parsed.ok) {
     return parsed.response;
   }
+  await ensureCompanyProfileColumns(c.env.DB);
   const existing = await c.env.DB.prepare(
-    "SELECT name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, career_url, mypage_url, logo_url, memo FROM companies WHERE id = ? AND room_id = ? AND deleted_at IS NULL",
+    "SELECT name, name_kana, domain, industry, priority_deadline_at, ticker, exchange, market_segment, legal_type, career_url, mypage_url, logo_url, memo FROM companies WHERE id = ? AND room_id = ? AND deleted_at IS NULL",
   )
     .bind(companyId, roomId)
     .first<CompanyRow>();
@@ -594,7 +601,7 @@ app.patch("/api/rooms/:roomId/companies/:companyId", async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE companies
-     SET name = ?, name_kana = ?, domain = ?, industry = ?, priority_deadline_at = ?, ticker = ?, exchange = ?, career_url = ?, mypage_url = ?, logo_url = ?, memo = ?, updated_at = ?
+     SET name = ?, name_kana = ?, domain = ?, industry = ?, priority_deadline_at = ?, ticker = ?, exchange = ?, market_segment = ?, legal_type = ?, career_url = ?, mypage_url = ?, logo_url = ?, memo = ?, updated_at = ?
      WHERE id = ? AND room_id = ?`,
   )
     .bind(
@@ -605,6 +612,8 @@ app.patch("/api/rooms/:roomId/companies/:companyId", async (c) => {
       parsed.data.priorityDeadlineAt ?? existing.priority_deadline_at,
       parsed.data.ticker ?? existing.ticker,
       parsed.data.exchange ?? existing.exchange,
+      parsed.data.marketSegment ?? existing.market_segment,
+      parsed.data.legalType ?? existing.legal_type,
       parsed.data.careerUrl ?? existing.career_url,
       parsed.data.mypageUrl ?? existing.mypage_url,
       parsed.data.logoUrl ?? existing.logo_url,
@@ -1008,10 +1017,12 @@ app.get("/api/company-catalog/search", async (c) => {
   )
     .bind(normalizedQuery, like, like, like, industry ?? null, industry ?? null)
     .all();
+  const databaseRows = rows.results ?? [];
+  const fallbackRows = databaseRows.length ? [] : searchFallbackCompanyCatalog(query, industry ?? null, sort ?? null);
 
   return c.json({
-    companies: rows.results ?? [],
-    status: rows.results?.length ? "ok" : "empty",
+    companies: databaseRows.length ? databaseRows : fallbackRows,
+    status: databaseRows.length || fallbackRows.length ? "ok" : "empty",
   });
 });
 
@@ -1146,6 +1157,25 @@ function normalizeCatalogSearchText(input: string): string {
   return input.trim().toLowerCase().normalize("NFKC");
 }
 
+let companyProfileColumnsReady = false;
+
+async function ensureCompanyProfileColumns(db: D1Database): Promise<void> {
+  if (companyProfileColumnsReady) {
+    return;
+  }
+  for (const statement of ["ALTER TABLE companies ADD COLUMN market_segment TEXT", "ALTER TABLE companies ADD COLUMN legal_type TEXT"]) {
+    try {
+      await db.prepare(statement).run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.toLowerCase().includes("duplicate column")) {
+        throw error;
+      }
+    }
+  }
+  companyProfileColumnsReady = true;
+}
+
 type JoinableRoomRow = {
   id: string;
   name: string;
@@ -1163,6 +1193,8 @@ type CompanyRow = {
   priority_deadline_at: string | null;
   ticker: string | null;
   exchange: string | null;
+  market_segment: string | null;
+  legal_type: string | null;
   career_url: string | null;
   mypage_url: string | null;
   logo_url: string | null;

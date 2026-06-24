@@ -5,11 +5,12 @@ import {
   CheckCircle2,
   CircleDot,
   Columns3,
+  Eye,
+  EyeOff,
   FlaskConical,
   Gauge,
   Globe2,
   KeyRound,
-  Link as LinkIcon,
   LockKeyhole,
   LogIn,
   Plus,
@@ -20,7 +21,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { FormEvent } from "react";
+import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   avatarPhotoUrl,
@@ -80,6 +81,9 @@ type Company = {
   dueDate: string | null;
   ticker: string | null;
   exchange: string | null;
+  marketSegment: string;
+  legalType: string;
+  mypageUrl: string;
   logoUrl?: string | null;
   status: CompanyStatus;
   stage: LocalText;
@@ -197,94 +201,6 @@ const roomTabs = [
   { suffix: "/settings", key: "settings" as const, icon: Settings },
 ];
 
-const companies: Company[] = [
-  {
-    id: "sony",
-    name: { ja: "ソニーグループ", en: "Sony Group" },
-    nameKana: "そにーぐるーぷ",
-    domain: "sony.com",
-    industry: { ja: "電機・エンタメ", en: "Electronics / entertainment" },
-    dueDate: "2026-06-24T10:00:00.000Z",
-    ticker: "6758",
-    exchange: "TSE",
-    status: "interview",
-    stage: { ja: "二次面接前", en: "Second interview" },
-    owner: { ja: "自分", en: "Me" },
-    due: { ja: "6/24 10:00", en: "Jun 24 10:00" },
-    test: "TG-WEB",
-    visibility: { ja: "共有", en: "Room" },
-    accent: "blue",
-  },
-  {
-    id: "recruit",
-    name: { ja: "リクルート", en: "Recruit" },
-    nameKana: "りくるーと",
-    domain: "recruit.co.jp",
-    industry: { ja: "人材・メディア", en: "HR / media" },
-    dueDate: "2026-06-27T14:59:00.000Z",
-    ticker: "6098",
-    exchange: "TSE",
-    status: "applied",
-    stage: { ja: "ES提出済み", en: "ES submitted" },
-    owner: { ja: "AK", en: "AK" },
-    due: { ja: "6/27", en: "Jun 27" },
-    test: "SPI",
-    visibility: { ja: "共有", en: "Room" },
-    accent: "green",
-  },
-  {
-    id: "toyota",
-    name: { ja: "トヨタ自動車", en: "Toyota Motor" },
-    nameKana: "とよたじどうしゃ",
-    domain: "toyota-global.com",
-    industry: { ja: "自動車", en: "Automotive" },
-    dueDate: "2026-07-02T14:59:00.000Z",
-    ticker: "7203",
-    exchange: "TSE",
-    status: "research",
-    stage: { ja: "企業研究", en: "Research" },
-    owner: { ja: "自分", en: "Me" },
-    due: { ja: "7/02", en: "Jul 02" },
-    test: "不明",
-    visibility: { ja: "非公開", en: "Private" },
-    accent: "amber",
-  },
-  {
-    id: "nintendo",
-    name: { ja: "任天堂", en: "Nintendo" },
-    nameKana: "にんてんどう",
-    domain: "nintendo.com",
-    industry: { ja: "ゲーム・玩具", en: "Games / toys" },
-    dueDate: "2026-07-05T14:59:00.000Z",
-    ticker: "7974",
-    exchange: "TSE",
-    status: "offer",
-    stage: { ja: "条件確認", en: "Offer review" },
-    owner: { ja: "自分", en: "Me" },
-    due: { ja: "7/05", en: "Jul 05" },
-    test: "CUBIC",
-    visibility: { ja: "共有", en: "Room" },
-    accent: "rose",
-  },
-  {
-    id: "cyberagent",
-    name: { ja: "サイバーエージェント", en: "CyberAgent" },
-    nameKana: "さいばーえーじぇんと",
-    domain: "cyberagent.co.jp",
-    industry: { ja: "広告・IT", en: "Advertising / IT" },
-    dueDate: "2026-07-10T14:59:00.000Z",
-    ticker: "4751",
-    exchange: "TSE",
-    status: "hold",
-    stage: { ja: "連絡待ち", en: "Waiting" },
-    owner: { ja: "YU", en: "YU" },
-    due: { ja: "7/10", en: "Jul 10" },
-    test: "企業独自",
-    visibility: { ja: "共有", en: "Room" },
-    accent: "violet",
-  },
-];
-
 const accentCycle: Company["accent"][] = ["blue", "green", "amber", "rose", "violet"];
 const emptyCompanies: Company[] = [];
 
@@ -299,6 +215,9 @@ function mapApiCompany(row: ApiCompany, index: number): Company {
     dueDate,
     ticker: row.ticker,
     exchange: row.exchange,
+    marketSegment: row.market_segment ?? "",
+    legalType: row.legal_type ?? "",
+    mypageUrl: row.mypage_url ?? "",
     logoUrl: row.logo_url,
     status: "research",
     stage: { ja: "企業研究", en: "Research" },
@@ -309,42 +228,6 @@ function mapApiCompany(row: ApiCompany, index: number): Company {
     accent: accentCycle[index % accentCycle.length],
   };
 }
-
-const calendarItems = [
-  {
-    time: "10:00",
-    title: { ja: "ソニーグループ 二次面接", en: "Sony Group second interview" },
-    meta: { ja: "オンライン / 共有メモ確認", en: "Online / review shared notes" },
-  },
-  {
-    time: "14:30",
-    title: { ja: "トヨタ自動車 企業研究", en: "Toyota research block" },
-    meta: { ja: "非公開メモ", en: "Private note" },
-  },
-  {
-    time: "18:00",
-    title: { ja: "リクルート SPI復習", en: "Recruit SPI review" },
-    meta: { ja: "過去レポート参照", en: "Use past reports" },
-  },
-];
-
-const priorityItems = [
-  {
-    label: { ja: "面接前に確認", en: "Before interview" },
-    title: { ja: "ソニーグループ: 逆質問と研究領域メモ", en: "Sony Group: questions and research notes" },
-    due: { ja: "今日 21:00", en: "Today 21:00" },
-  },
-  {
-    label: { ja: "提出物", en: "Submission" },
-    title: { ja: "リクルート: MyPageの追加設問", en: "Recruit: MyPage extra question" },
-    due: { ja: "明日", en: "Tomorrow" },
-  },
-  {
-    label: { ja: "整理", en: "Triage" },
-    title: { ja: "企業ロゴとドメイン未登録の候補を補完", en: "Complete missing domains and logos" },
-    due: { ja: "今週", en: "This week" },
-  },
-];
 
 const kanbanColumns = [
   { title: { ja: "企業研究", en: "Research" }, status: "research" as const },
@@ -363,38 +246,124 @@ const applicationStatusOptions = [
   { value: "hold", label: { ja: "保留", en: "Hold" }, stepIndex: 0 },
 ];
 
-const sampleTestReports: TestReportDisplay[] = [
-  {
-    id: "sample-sony-tgweb",
-    company: companies[0],
-    type: "TG-WEB",
-    source: { ja: "共有メモ", en: "Shared note" },
-    notes: "言語は時間配分、非言語は図表問題を先に確認。",
-    visibility: "room",
-    updated: { ja: "今日", en: "Today" },
-    updatedAt: "2026-06-21T09:00:00.000Z",
-  },
-  {
-    id: "sample-recruit-spi",
-    company: companies[1],
-    type: "SPI",
-    source: { ja: "先輩レポート", en: "Past candidate" },
-    notes: "性格検査は一貫性重視。計数は推論問題が多い。",
-    visibility: "room",
-    updated: { ja: "昨日", en: "Yesterday" },
-    updatedAt: "2026-06-20T09:00:00.000Z",
-  },
-  {
-    id: "sample-nintendo-cubic",
-    company: companies[3],
-    type: "CUBIC",
-    source: { ja: "手入力", en: "Manual" },
-    notes: "短時間で回答する形式。事前に例題だけ確認。",
-    visibility: "private",
-    updated: { ja: "6/18", en: "Jun 18" },
-    updatedAt: "2026-06-18T09:00:00.000Z",
-  },
+type CompanyDraft = {
+  domain: string;
+  exchange: string;
+  industry: string;
+  legalType: string;
+  logoUrl: string;
+  marketSegment: string;
+  mypageUrl: string;
+  name: string;
+  nameKana: string;
+  ticker: string;
+};
+
+const industryOptionValues = [
+  "",
+  "機械",
+  "電気機器",
+  "電気機器・エンタメ",
+  "輸送用機器",
+  "情報・通信",
+  "IT・情報通信",
+  "インターネットサービス",
+  "サービス",
+  "小売",
+  "総合商社",
+  "銀行",
+  "広告・マーケティング",
+  "空運",
+  "鉄鋼",
+  "レジャー",
+  "官公庁",
+  "地方自治体",
+  "独立行政法人",
+  "国立研究開発法人",
+  "教育・研究",
+  "その他",
 ];
+
+const exchangeOptionValues = ["", "TSE", "NSE", "FSE", "SSE", "TOKYO PRO Market"];
+const marketSegmentValues = ["", "プライム", "スタンダード", "グロース", "TOKYO PRO Market", "非上場", "対象外"];
+const legalTypeValues = [
+  "",
+  "株式会社",
+  "合同会社",
+  "有限会社",
+  "一般社団法人",
+  "一般財団法人",
+  "公益社団法人",
+  "公益財団法人",
+  "独立行政法人",
+  "国立研究開発法人",
+  "国立大学法人",
+  "学校法人",
+  "医療法人",
+  "社会福祉法人",
+  "省庁",
+  "地方自治体",
+  "その他",
+];
+
+function createEmptyCompanyDraft(): CompanyDraft {
+  return {
+    domain: "",
+    exchange: "",
+    industry: "",
+    legalType: "",
+    logoUrl: "",
+    marketSegment: "",
+    mypageUrl: "",
+    name: "",
+    nameKana: "",
+    ticker: "",
+  };
+}
+
+function optionList(values: string[], locale: Locale, emptyJa: string, emptyEn: string): Array<{ label: string; value: string }> {
+  return values.map((value) => ({
+    label: value || (locale === "ja" ? emptyJa : emptyEn),
+    value,
+  }));
+}
+
+function industryOptions(locale: Locale) {
+  return optionList(industryOptionValues, locale, "未選択", "Not selected");
+}
+
+function exchangeOptions(locale: Locale) {
+  return optionList(exchangeOptionValues, locale, "対象外・未選択", "N/A or not selected");
+}
+
+function marketSegmentOptions(locale: Locale) {
+  return optionList(marketSegmentValues, locale, "対象外・未選択", "N/A or not selected");
+}
+
+function legalTypeOptions(locale: Locale) {
+  return optionList(legalTypeValues, locale, "未選択", "Not selected");
+}
+
+function setDraftField(
+  setDraft: Dispatch<SetStateAction<CompanyDraft>>,
+  key: keyof CompanyDraft,
+  value: string,
+) {
+  setDraft((current) => ({ ...current, [key]: value }));
+}
+
+function inferLegalType(name: string): string {
+  if (name.includes("合同会社")) return "合同会社";
+  if (name.includes("有限会社")) return "有限会社";
+  if (name.includes("国立研究開発法人")) return "国立研究開発法人";
+  if (name.includes("独立行政法人")) return "独立行政法人";
+  if (name.includes("国立大学法人")) return "国立大学法人";
+  if (name.includes("学校法人")) return "学校法人";
+  if (name.includes("省") || name.includes("庁")) return "省庁";
+  if (name.includes("市") || name.includes("区役所") || name.includes("県庁") || name.includes("都庁") || name.includes("府庁")) return "地方自治体";
+  if (name.includes("株式会社") || !name.match(/法人|省|庁|役所|市$/)) return "株式会社";
+  return "その他";
+}
 
 const referenceNow = new Date("2026-06-21T09:00:00+09:00");
 
@@ -693,6 +662,36 @@ function HomeActionLink({
   );
 }
 
+function EmptyState({
+  actionLabel,
+  icon: Icon,
+  text: body,
+  title,
+  to,
+}: {
+  actionLabel?: string;
+  icon: typeof Plus;
+  text: string;
+  title: string;
+  to?: string;
+}) {
+  return (
+    <div className="empty-state">
+      <span className="empty-state-icon">
+        <Icon size={18} aria-hidden="true" />
+      </span>
+      <strong>{title}</strong>
+      <p>{body}</p>
+      {to && actionLabel ? (
+        <Link className="secondary-action" to={to}>
+          <ArrowRight size={16} aria-hidden="true" />
+          <span>{actionLabel}</span>
+        </Link>
+      ) : null}
+    </div>
+  );
+}
+
 function HomeRoomCard({ locale, room }: { locale: Locale; room: ApiRoomListItem }) {
   return (
     <Link className="room-card" to={`/rooms/${room.id}`}>
@@ -886,6 +885,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
   const [industryFilter, setIndustryFilter] = useState<string>("all");
   const [liveCompanies, setLiveCompanies] = useState<Company[] | null>(null);
   const [loadMessage, setLoadMessage] = useState<string | null>(null);
+  const [selectedCatalogCompany, setSelectedCatalogCompany] = useState<CatalogCompany | null>(null);
   const reloadCompanies = useCallback(async () => {
     setLoadMessage(null);
     try {
@@ -906,7 +906,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
     }
   }, [reloadCompanies, tab]);
 
-  const roomCompanies = liveCompanies ?? (roomId === "demo-room" ? companies : emptyCompanies);
+  const roomCompanies = liveCompanies ?? emptyCompanies;
   const filteredCompanies = useMemo(
     () => sortCompanies(filterCompanies(roomCompanies, "all", industryFilter, locale), sortMode, locale),
     [industryFilter, locale, roomCompanies, sortMode],
@@ -916,8 +916,8 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
     return (
       <section className="surface table-surface">
         <PanelHeader title={locale === "ja" ? "選考企業" : "Selection list"} actionLabel={locale === "ja" ? "追加" : "Add"} to={`/rooms/${roomId}/companies`} icon={Plus} />
-        <CatalogSearchPanel locale={locale} onImported={reloadCompanies} roomId={roomId} />
-        <CompanyIntakePanel locale={locale} onCreated={reloadCompanies} roomId={roomId} />
+        <CatalogSearchPanel locale={locale} onSelected={setSelectedCatalogCompany} />
+        <CompanyIntakePanel locale={locale} onCreated={reloadCompanies} roomId={roomId} selectedCatalog={selectedCatalogCompany} />
         <CompanyControls
           companies={roomCompanies}
           industryFilter={industryFilter}
@@ -926,15 +926,28 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
           setSortMode={setSortMode}
           sortMode={sortMode}
         />
-        {loadMessage ? <p className="form-status">{roomId === "demo-room" ? (locale === "ja" ? "プレビュー用の選考企業を表示しています。" : "Showing preview company records.") : loadMessage}</p> : null}
+        {loadMessage ? <p className="form-status">{loadMessage}</p> : null}
         <CompanyTable companies={filteredCompanies} locale={locale} roomId={roomId} />
       </section>
     );
   }
 
   if (tab === "company-detail") {
-    const company = roomCompanies.find((item) => item.id === companyId) ?? companies.find((item) => item.id === companyId) ?? companies[0];
-    return <CompanyDetail company={company} locale={locale} />;
+    const company = roomCompanies.find((item) => item.id === companyId);
+    if (!company) {
+      return (
+        <section className="surface">
+          <EmptyState
+            actionLabel={locale === "ja" ? "企業一覧へ" : "Open companies"}
+            icon={BriefcaseBusiness}
+            text={locale === "ja" ? "企業を追加すると、選考状況や締切をここで確認できます。" : "Add companies to view selection details and deadlines here."}
+            title={locale === "ja" ? "企業がまだありません" : "No company selected"}
+            to={`/rooms/${roomId}/companies`}
+          />
+        </section>
+      );
+    }
+    return <CompanyDetail company={company} locale={locale} roomId={roomId} />;
   }
 
   if (tab === "progress") {
@@ -977,17 +990,14 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
   }
 
   return (
-    <section className="split-layout">
-      <div className="surface table-surface">
+    <section className="split-layout workspace-overview">
+      <div className="surface table-surface overview-primary">
         <PanelHeader title={locale === "ja" ? "スペース全体" : "Room overview"} actionLabel={locale === "ja" ? "企業追加" : "New company"} to={`/rooms/${roomId}/companies`} icon={Plus} />
         <CompanyTable companies={roomCompanies.slice(0, 4)} locale={locale} roomId={roomId} />
       </div>
       <aside className="right-rail">
-        <div className="surface">
-          <PanelHeader title={locale === "ja" ? "今日" : "Today"} actionLabel={locale === "ja" ? "開く" : "Open"} to={`/rooms/${roomId}/calendar`} icon={CalendarDays} />
-          <Timeline locale={locale} />
-        </div>
-        <LogoProviderPanel locale={locale} />
+        <SchedulePreview companies={roomCompanies} locale={locale} roomId={roomId} />
+        <LogoProviderPanel company={roomCompanies[0]} locale={locale} />
       </aside>
     </section>
   );
@@ -1004,13 +1014,24 @@ function CompanyTable({ companies: rows, locale, roomId }: { companies: Company[
         <span>{locale === "ja" ? "期限" : "Due"}</span>
         <span>{locale === "ja" ? "担当" : "Owner"}</span>
       </div>
+      {!rows.length ? (
+        <div className="table-empty-row">
+          <EmptyState
+            actionLabel={locale === "ja" ? "企業を追加" : "Add company"}
+            icon={BriefcaseBusiness}
+            text={locale === "ja" ? "企業名、締切、選考状況を追加すると、ここに一覧として並びます。架空の企業やメモは表示しません。" : "Add company names, deadlines, and selection status. This view does not show placeholder records."}
+            title={locale === "ja" ? "選考企業はまだありません" : "No companies yet"}
+            to={`/rooms/${roomId}/companies`}
+          />
+        </div>
+      ) : null}
       {rows.map((company) => (
         <Link className="table-row" role="row" key={company.id} to={`/rooms/${roomId}/companies/${company.id}`}>
           <span className="company-cell">
             <CompanyLogoMark company={company} locale={locale} />
             <span>
               <strong>{text(company.name, locale)}</strong>
-              <small>{[company.domain, formatTicker(company)].filter(Boolean).join(" / ")}</small>
+              <small>{[company.mypageUrl ? (locale === "ja" ? "MyPage URLあり" : "MyPage URL") : company.domain, formatTicker(company), company.legalType].filter(Boolean).join(" / ")}</small>
             </span>
           </span>
           <span>{text(company.industry, locale)}</span>
@@ -1037,14 +1058,14 @@ function CompanyLogoMark({ company, locale, large = false }: { company: Company;
   );
 }
 
-function CompanyDetail({ company, locale }: { company: Company; locale: Locale }) {
+function CompanyDetail({ company, locale, roomId }: { company: Company; locale: Locale; roomId: string }) {
   return (
     <section className="detail-layout">
       <div className="surface detail-main">
         <div className="company-title">
           <CompanyLogoMark company={company} locale={locale} large />
           <div>
-            <p className="eyebrow">{company.domain}</p>
+            <p className="eyebrow">{[company.legalType, company.marketSegment].filter(Boolean).join(" / ") || company.domain}</p>
             <h2>{text(company.name, locale)}</h2>
           </div>
         </div>
@@ -1052,29 +1073,22 @@ function CompanyDetail({ company, locale }: { company: Company; locale: Locale }
           <DetailItem label={locale === "ja" ? "現在地" : "Current step"} value={text(company.stage, locale)} />
           <DetailItem label={locale === "ja" ? "期限" : "Deadline"} value={text(company.due, locale)} />
           <DetailItem label={locale === "ja" ? "業種" : "Industry"} value={text(company.industry, locale)} />
+          <DetailItem label={locale === "ja" ? "法人区分" : "Legal type"} value={company.legalType || (locale === "ja" ? "未登録" : "Not set")} />
+          <DetailItem label={locale === "ja" ? "市場区分" : "Market segment"} value={company.marketSegment || (locale === "ja" ? "対象外・未登録" : "N/A or not set")} />
           <DetailItem label={locale === "ja" ? "証券コード" : "Ticker"} value={formatTicker(company) ?? (locale === "ja" ? "未登録" : "Not set")} />
+          <DetailItem label="MyPage URL" value={company.mypageUrl || (locale === "ja" ? "未登録" : "Not set")} />
           <DetailItem label={locale === "ja" ? "適性検査" : "Test"} value={company.test} />
           <DetailItem label={locale === "ja" ? "公開範囲" : "Visibility"} value={text(company.visibility, locale)} />
         </div>
-        <div className="step-list">
-          {(locale === "ja" ? ["ES", "Webテスト", "一次面接", "二次面接", "最終面接"] : ["Entry sheet", "Web test", "First", "Second", "Final"]).map(
-            (step, index) => (
-              <div className="step-item" key={step}>
-                <span className={index < 3 ? "step-dot complete" : "step-dot"} />
-                <span>{step}</span>
-              </div>
-            ),
-          )}
+        <div className="detail-empty-note">
+          <span>{locale === "ja" ? "進捗は未登録です" : "Progress is not registered yet"}</span>
+          <Link to={`/rooms/${roomId}/progress`}>
+            {locale === "ja" ? "進捗を保存" : "Save progress"}
+            <ArrowRight size={15} aria-hidden="true" />
+          </Link>
         </div>
       </div>
       <aside className="right-rail">
-        <div className="surface">
-          <PanelHeader title={locale === "ja" ? "リンク" : "Links"} actionLabel={locale === "ja" ? "開く" : "Open"} to="#" icon={LinkIcon} />
-          <div className="link-list">
-            <a href="#">{locale === "ja" ? "採用ページ" : "Career page"}</a>
-            <a href="#">{locale === "ja" ? "MyPage" : "My page"}</a>
-          </div>
-        </div>
         <LogoProviderPanel locale={locale} company={company} />
       </aside>
     </section>
@@ -1132,7 +1146,7 @@ function CompanyControls({
   );
 }
 
-function CatalogSearchPanel({ locale, onImported, roomId }: { locale: Locale; onImported: () => void; roomId: string }) {
+function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected: (company: CatalogCompany) => void }) {
   const [message, setMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CatalogCompany[]>([]);
@@ -1154,33 +1168,14 @@ function CatalogSearchPanel({ locale, onImported, roomId }: { locale: Locale; on
     }
   };
 
-  const addCatalogCompany = async (company: CatalogCompany) => {
-    setMessage(null);
-    try {
-      await createCompany(roomId, {
-        domain: company.domain ?? undefined,
-        exchange: company.exchange ?? undefined,
-        industry: company.industry ?? undefined,
-        logoUrl: company.logo_url ?? undefined,
-        name: company.name,
-        nameKana: company.name_kana ?? undefined,
-        ticker: company.ticker ?? undefined,
-      });
-      setMessage(locale === "ja" ? "辞書から選考企業に追加しました。" : "Added from catalog.");
-      onImported();
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : locale === "ja" ? "追加できませんでした" : "Could not add company");
-    }
-  };
-
   return (
     <div className="catalog-search-panel">
       <form className="catalog-search-form" onSubmit={handleSearch}>
         <label>
-          {locale === "ja" ? "企業辞書" : "Company catalog"}
+          {locale === "ja" ? "企業・法人辞書" : "Company and organization catalog"}
           <input
             onChange={(event) => setQuery(event.target.value)}
-            placeholder={locale === "ja" ? "企業名・証券コードで検索" : "Search name or ticker"}
+            placeholder={locale === "ja" ? "企業名・法人名・証券コードで検索" : "Search name, organization, or ticker"}
             value={query}
           />
         </label>
@@ -1198,9 +1193,9 @@ function CatalogSearchPanel({ locale, onImported, roomId }: { locale: Locale; on
                 <strong>{company.name}</strong>
                 <small>{[company.industry, company.market, formatCatalogTicker(company)].filter(Boolean).join(" / ")}</small>
               </span>
-              <button className="secondary-action" type="button" onClick={() => void addCatalogCompany(company)}>
-                <Plus size={15} aria-hidden="true" />
-                <span>{locale === "ja" ? "追加" : "Add"}</span>
+              <button className="secondary-action" type="button" onClick={() => onSelected({ ...company })}>
+                <ArrowRight size={15} aria-hidden="true" />
+                <span>{locale === "ja" ? "反映" : "Fill"}</span>
               </button>
             </div>
           ))}
@@ -1210,9 +1205,42 @@ function CatalogSearchPanel({ locale, onImported, roomId }: { locale: Locale; on
   );
 }
 
-function CompanyIntakePanel({ locale, onCreated, roomId }: { locale: Locale; onCreated: () => void; roomId: string }) {
+function CompanyIntakePanel({
+  locale,
+  onCreated,
+  roomId,
+  selectedCatalog,
+}: {
+  locale: Locale;
+  onCreated: () => void;
+  roomId: string;
+  selectedCatalog: CatalogCompany | null;
+}) {
+  const [draft, setDraft] = useState(createEmptyCompanyDraft());
   const [message, setMessage] = useState<string | null>(null);
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!selectedCatalog) {
+      return;
+    }
+    setDraft((current) => ({
+      ...current,
+      domain: selectedCatalog.domain ?? current.domain,
+      exchange: selectedCatalog.exchange ?? current.exchange,
+      industry: selectedCatalog.industry ?? current.industry,
+      legalType: inferLegalType(selectedCatalog.name),
+      logoUrl: selectedCatalog.logo_url ?? current.logoUrl,
+      marketSegment: selectedCatalog.market ?? current.marketSegment,
+      mypageUrl: selectedCatalog.domain ? `https://${selectedCatalog.domain}` : current.mypageUrl,
+      name: selectedCatalog.name,
+      nameKana: selectedCatalog.name_kana ?? current.nameKana,
+      ticker: selectedCatalog.ticker ?? current.ticker,
+    }));
+    setMessage(locale === "ja" ? "辞書候補を入力欄へ反映しました。" : "Catalog candidate filled into the form.");
+  }, [locale, selectedCatalog]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSubmitting(true);
@@ -1220,17 +1248,45 @@ function CompanyIntakePanel({ locale, onCreated, roomId }: { locale: Locale; onC
     const form = event.currentTarget;
     const data = new FormData(form);
     const deadline = readFormText(data, "priorityDeadlineAt");
+    const name = readFormText(data, "name") ?? "";
+    const mypagePassword = readFormText(data, "mypagePassword");
+    const vaultPassphrase = readFormText(data, "vaultPassphrase");
+    if (mypagePassword && (!vaultPassphrase || vaultPassphrase.length < 8)) {
+      setSubmitting(false);
+      setMessage(locale === "ja" ? "MyPageパスワードを保存する場合は、8文字以上の金庫パスフレーズも入力してください。" : "Enter a vault passphrase of at least 8 characters to save the MyPage password.");
+      return;
+    }
     try {
       await createCompany(roomId, {
         domain: readFormText(data, "domain"),
         exchange: readFormText(data, "exchange"),
         industry: readFormText(data, "industry"),
-        name: readFormText(data, "name") ?? "",
+        legalType: readFormText(data, "legalType"),
+        logoUrl: readFormText(data, "logoUrl"),
+        marketSegment: readFormText(data, "marketSegment"),
+        mypageUrl: readFormText(data, "mypageUrl"),
+        name,
         nameKana: readFormText(data, "nameKana"),
         priorityDeadlineAt: deadline ? new Date(deadline).toISOString() : undefined,
         ticker: readFormText(data, "ticker"),
       });
+      if (mypagePassword) {
+        const plain: VaultPlainPayload = {
+          version: 1,
+          label: `${name} MyPage`,
+          content: [
+            readFormText(data, "mypageUrl") ? `URL: ${readFormText(data, "mypageUrl")}` : null,
+            `Password: ${mypagePassword}`,
+          ]
+            .filter(Boolean)
+            .join("\n"),
+          savedAt: new Date().toISOString(),
+        };
+        const encrypted = await encryptVaultText(JSON.stringify(plain), vaultPassphrase ?? "");
+        await createVaultItem(roomId, { encryptedPayload: JSON.stringify(encrypted) });
+      }
       form.reset();
+      setDraft(createEmptyCompanyDraft());
       setMessage(locale === "ja" ? "企業を追加しました。" : "Company added.");
       onCreated();
     } catch (error) {
@@ -1242,16 +1298,20 @@ function CompanyIntakePanel({ locale, onCreated, roomId }: { locale: Locale; onC
   return (
     <form className="company-intake-panel" onSubmit={handleSubmit}>
       <label>
-        {locale === "ja" ? "企業名" : "Company"}
-        <input name="name" required placeholder={locale === "ja" ? "例: ソニーグループ" : "Example: Sony Group"} />
+        {locale === "ja" ? "名称" : "Name"}
+        <input name="name" required placeholder={locale === "ja" ? "例: 第一志望の企業・法人" : "Example: target organization"} value={draft.name} onChange={(event) => setDraftField(setDraft, "name", event.target.value)} />
       </label>
       <label>
         {locale === "ja" ? "読み" : "Reading"}
-        <input name="nameKana" placeholder={locale === "ja" ? "そにーぐるーぷ" : "sony group"} />
+        <input name="nameKana" placeholder={locale === "ja" ? "みつびしじゅうこうぎょう" : "name reading"} value={draft.nameKana} onChange={(event) => setDraftField(setDraft, "nameKana", event.target.value)} />
       </label>
       <label>
         {locale === "ja" ? "業種" : "Industry"}
-        <input name="industry" placeholder={locale === "ja" ? "例: 電機・エンタメ" : "Example: Electronics"} />
+        <select name="industry" value={draft.industry} onChange={(event) => setDraftField(setDraft, "industry", event.target.value)}>
+          {industryOptions(locale).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
       </label>
       <label>
         {locale === "ja" ? "直近締切" : "Priority deadline"}
@@ -1259,17 +1319,55 @@ function CompanyIntakePanel({ locale, onCreated, roomId }: { locale: Locale; onC
       </label>
       <label>
         {locale === "ja" ? "証券コード" : "Ticker"}
-        <input name="ticker" placeholder={locale === "ja" ? "6758" : "6758"} />
+        <input name="ticker" placeholder={locale === "ja" ? "上場企業のみ" : "Listed only"} value={draft.ticker} onChange={(event) => setDraftField(setDraft, "ticker", event.target.value)} />
       </label>
       <label>
         {locale === "ja" ? "取引所" : "Exchange"}
-        <input name="exchange" placeholder="TSE" />
+        <select name="exchange" value={draft.exchange} onChange={(event) => setDraftField(setDraft, "exchange", event.target.value)}>
+          {exchangeOptions(locale).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
       </label>
       <label>
-        {locale === "ja" ? "ドメイン" : "Domain"}
-        <input name="domain" placeholder="example.com" />
+        {locale === "ja" ? "市場区分" : "Market segment"}
+        <select name="marketSegment" value={draft.marketSegment} onChange={(event) => setDraftField(setDraft, "marketSegment", event.target.value)}>
+          {marketSegmentOptions(locale).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
       </label>
-      {message ? <p className={message.includes("追加") || message.includes("added") ? "form-status success" : "form-status danger"}>{message}</p> : null}
+      <label>
+        {locale === "ja" ? "法人区分" : "Legal type"}
+        <select name="legalType" value={draft.legalType} onChange={(event) => setDraftField(setDraft, "legalType", event.target.value)}>
+          {legalTypeOptions(locale).map((option) => (
+            <option key={option.value} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        MyPage URL
+        <input name="mypageUrl" placeholder="https://..." type="url" value={draft.mypageUrl} onChange={(event) => setDraftField(setDraft, "mypageUrl", event.target.value)} />
+      </label>
+      <label>
+        {locale === "ja" ? "公式ドメイン" : "Official domain"}
+        <input name="domain" placeholder="example.com" value={draft.domain} onChange={(event) => setDraftField(setDraft, "domain", event.target.value)} />
+      </label>
+      <label className="password-label">
+        {locale === "ja" ? "MyPage パスワード" : "MyPage password"}
+        <span className="password-field">
+          <input name="mypagePassword" placeholder={locale === "ja" ? "任意・金庫へ暗号化保存" : "Optional, encrypted in vault"} type={passwordVisible ? "text" : "password"} />
+          <button type="button" onClick={() => setPasswordVisible((current) => !current)} aria-label={passwordVisible ? (locale === "ja" ? "隠す" : "Hide") : locale === "ja" ? "表示" : "Show"}>
+            {passwordVisible ? <EyeOff size={17} aria-hidden="true" /> : <Eye size={17} aria-hidden="true" />}
+          </button>
+        </span>
+      </label>
+      <label>
+        {locale === "ja" ? "金庫パスフレーズ" : "Vault passphrase"}
+        <input name="vaultPassphrase" placeholder={locale === "ja" ? "8文字以上・任意" : "8+ characters, optional"} type="password" />
+      </label>
+      <input name="logoUrl" type="hidden" value={draft.logoUrl} />
+      {message ? <p className={isPositiveMessage(message) ? "form-status success" : "form-status danger"}>{message}</p> : null}
       <button className="secondary-action" type="submit" disabled={submitting}>
         <Plus size={16} aria-hidden="true" />
         <span>{submitting ? (locale === "ja" ? "保存中" : "Saving") : locale === "ja" ? "保存" : "Save"}</span>
@@ -1312,20 +1410,6 @@ function SegmentedFilter({
   );
 }
 
-function PriorityList({ locale }: { locale: Locale }) {
-  return (
-    <div className="priority-list">
-      {priorityItems.map((item) => (
-        <div className="priority-item" key={item.title.ja}>
-          <span>{text(item.label, locale)}</span>
-          <strong>{text(item.title, locale)}</strong>
-          <small>{text(item.due, locale)}</small>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function DeadlineStrip({ companies, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
   const urgent = sortCompanies(companies, "deadline", locale).filter((company) => company.dueDate && daysUntil(company.dueDate) <= 3);
   return (
@@ -1343,6 +1427,88 @@ function DeadlineStrip({ companies, locale, roomId }: { companies: Company[]; lo
         ))}
       </div>
     </section>
+  );
+}
+
+function SchedulePreview({ companies: rows, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
+  const [items, setItems] = useState<Array<{ companyId: string | null; id: string; kind: string; meta: string; time: string | null; title: string }>>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (roomId === "demo-room") {
+      setItems([]);
+      return () => {
+        active = false;
+      };
+    }
+    setLoading(true);
+    Promise.all([listEvents(roomId), listTasks(roomId)])
+      .then(([eventResponse, taskResponse]) => {
+        if (!active) {
+          return;
+        }
+        const nextItems = [
+          ...eventResponse.events.map((event) => ({
+            companyId: event.company_id,
+            id: event.id,
+            kind: locale === "ja" ? "予定" : "Event",
+            meta: [event.kind, visibilityLabel(event.visibility, locale)].filter(Boolean).join(" / "),
+            time: event.starts_at,
+            title: event.title,
+          })),
+          ...taskResponse.tasks.map((task) => ({
+            companyId: task.company_id,
+            id: task.id,
+            kind: locale === "ja" ? "TODO" : "Task",
+            meta: [taskStatusLabel(task.status, locale), visibilityLabel(task.visibility, locale)].join(" / "),
+            time: task.due_at,
+            title: task.title,
+          })),
+        ].sort((a, b) => scheduleSortValue(a.time) - scheduleSortValue(b.time));
+        setItems(nextItems.slice(0, 4));
+      })
+      .catch(() => {
+        if (active) {
+          setItems([]);
+        }
+      })
+      .finally(() => {
+        if (active) {
+          setLoading(false);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, [locale, roomId]);
+
+  return (
+    <div className="surface schedule-preview">
+      <PanelHeader title={locale === "ja" ? "今日" : "Today"} actionLabel={locale === "ja" ? "開く" : "Open"} to={`/rooms/${roomId}/calendar`} icon={CalendarDays} />
+      {items.length ? (
+        <div className="schedule-list">
+          {items.map((item) => (
+            <div className="schedule-row" key={`${item.kind}-${item.id}`}>
+              <time>{item.time ? formatDateTimeLabel(item.time, locale) : locale === "ja" ? "期限なし" : "No due date"}</time>
+              <span>
+                <strong>{item.title}</strong>
+                <small>{[findCompanyName(rows, item.companyId, locale), item.meta].filter(Boolean).join(" / ")}</small>
+              </span>
+              <b>{item.kind}</b>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          actionLabel={locale === "ja" ? "日程を追加" : "Add schedule"}
+          icon={CalendarDays}
+          text={locale === "ja" ? "保存した予定やTODOだけを表示します。まだ登録がないため、ここには何も出していません。" : "Only saved events and tasks appear here. Nothing has been added yet."}
+          title={loading ? (locale === "ja" ? "読み込み中" : "Loading") : locale === "ja" ? "今日の予定はまだありません" : "Nothing scheduled yet"}
+          to={`/rooms/${roomId}/calendar`}
+        />
+      )}
+    </div>
   );
 }
 
@@ -1532,7 +1698,7 @@ function SchedulePanel({ companies: rows, locale, roomId }: { companies: Company
       </div>
       {message ? <p className={isPositiveMessage(message) ? "form-status success" : "form-status"}>{message}</p> : null}
       {loading ? <p className="form-status">{locale === "ja" ? "読み込み中..." : "Loading..."}</p> : null}
-      <ScheduleItemList companies={rows} events={events} locale={locale} sample={roomId === "demo-room"} tasks={tasks} />
+      <ScheduleItemList companies={rows} events={events} locale={locale} tasks={tasks} />
     </div>
   );
 }
@@ -1541,19 +1707,13 @@ function ScheduleItemList({
   companies: rows,
   events,
   locale,
-  sample,
   tasks,
 }: {
   companies: Company[];
   events: ApiEvent[];
   locale: Locale;
-  sample: boolean;
   tasks: ApiTask[];
 }) {
-  if (sample) {
-    return <Timeline locale={locale} />;
-  }
-
   const items = [
     ...events.map((event) => ({
       companyId: event.company_id,
@@ -1608,22 +1768,6 @@ function DeadlineCalendar({ companies, locale, roomId, large = false }: { compan
           </span>
           <b>{remainingTimeText(company.dueDate, locale)}</b>
         </Link>
-      ))}
-    </div>
-  );
-}
-
-function Timeline({ locale }: { locale: Locale }) {
-  return (
-    <div className="timeline">
-      {calendarItems.map((item) => (
-        <div className="timeline-item" key={`${item.time}-${item.title.ja}`}>
-          <time>{item.time}</time>
-          <span>
-            <strong>{text(item.title, locale)}</strong>
-            <small>{text(item.meta, locale)}</small>
-          </span>
-        </div>
       ))}
     </div>
   );
@@ -1757,9 +1901,8 @@ function ProgressPanel({ companies: rows, locale, roomId }: { companies: Company
       {loading ? <p className="form-status">{locale === "ja" ? "読み込み中..." : "Loading..."}</p> : null}
       <ProgressMatrix
         applications={applications}
-        companies={rows.length ? rows : roomId === "demo-room" ? companies : emptyCompanies}
+        companies={rows}
         locale={locale}
-        sample={roomId === "demo-room"}
       />
       <ProgressApplicationList applications={applications} locale={locale} />
     </div>
@@ -1770,12 +1913,10 @@ function ProgressMatrix({
   applications,
   companies: rows,
   locale,
-  sample = false,
 }: {
   applications: ApiApplication[];
   companies: Company[];
   locale: Locale;
-  sample?: boolean;
 }) {
   const steps = locale === "ja" ? ["ES", "検査", "一次", "二次", "最終"] : ["ES", "Test", "1st", "2nd", "Final"];
   const applicationByCompany = new Map(applications.map((application) => [application.company_id, application]));
@@ -1787,9 +1928,9 @@ function ProgressMatrix({
           <span key={step}>{step}</span>
         ))}
       </div>
-      {rows.map((company, companyIndex) => {
+      {rows.map((company) => {
         const application = applicationByCompany.get(company.id);
-        const currentStep = application ? progressStepIndex(application.overall_status) : sample ? Math.min(companyIndex, steps.length - 1) : -1;
+        const currentStep = application ? progressStepIndex(application.overall_status) : -1;
         return (
           <div className="matrix-row" role="row" key={company.id}>
             <strong>{text(company.name, locale)}</strong>
@@ -1843,13 +1984,13 @@ function ProgressApplicationList({ applications, locale }: { applications: ApiAp
 
 function TestReportsPanel({ companies: rows, locale, roomId }: { companies: Company[]; locale: Locale; roomId: string }) {
   const [message, setMessage] = useState<string | null>(null);
-  const [reports, setReports] = useState<TestReportDisplay[]>(roomId === "demo-room" ? sampleTestReports : []);
+  const [reports, setReports] = useState<TestReportDisplay[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const loadReports = useCallback(async () => {
     if (roomId === "demo-room") {
-      setReports(sampleTestReports);
+      setReports([]);
       return;
     }
     if (!rows.length) {
@@ -1959,7 +2100,7 @@ function TestReportsPanel({ companies: rows, locale, roomId }: { companies: Comp
 function TestReportTable({
   locale,
   compact = false,
-  reports = sampleTestReports,
+  reports = [],
 }: {
   locale: Locale;
   compact?: boolean;
@@ -2102,7 +2243,7 @@ function VaultPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
           </label>
           <label>
             {locale === "ja" ? "ラベル" : "Label"}
-            <input name="label" placeholder={locale === "ja" ? "ソニー MyPage" : "Sony mypage"} />
+            <input name="label" placeholder={locale === "ja" ? "企業名 MyPage" : "Company mypage"} />
           </label>
           <label className="span-2">
             {locale === "ja" ? "保存内容" : "Saved content"}
@@ -2393,7 +2534,7 @@ function LogoProviderPanel({ locale, company }: { locale: Locale; company?: Comp
         </button>
       </form>
       <div className="logo-provider-body">
-        <DetailItem label={locale === "ja" ? "対象" : "Target"} value={company ? company.domain : "5 domains"} />
+        <DetailItem label={locale === "ja" ? "対象" : "Target"} value={company?.domain || (locale === "ja" ? "未選択" : "Not selected")} />
         <DetailItem label={locale === "ja" ? "候補" : "Candidates"} value={results.length ? `${results.length}` : locale === "ja" ? "未検索" : "Not searched"} />
       </div>
       {message ? <p className="form-status">{message}</p> : null}
@@ -2633,7 +2774,7 @@ function memberAvatarText(member: ApiRoomMember): string {
 }
 
 function isPositiveMessage(message: string): boolean {
-  return ["追加", "保存", "復号", "Added", "saved", "Saved", "Unlocked"].some((word) => message.includes(word));
+  return ["追加", "保存", "復号", "反映", "Added", "added", "saved", "Saved", "Unlocked", "filled"].some((word) => message.includes(word));
 }
 
 function deadlineSortValue(dateIso: string | null): number {
