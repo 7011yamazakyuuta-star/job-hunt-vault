@@ -839,6 +839,12 @@ a {
   padding: 0 10px;
 }
 
+.catalog-source-note {
+  color: var(--muted);
+  font-size: 0.75rem;
+  margin: -2px 0 0;
+}
+
 .catalog-result-list {
   display: grid;
   gap: 7px;

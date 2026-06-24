@@ -14,7 +14,7 @@ import { getOptionalNumber, jsonError, parseJson } from "./http";
 import { normalizeLogoDomain, resolveLogoForDomain, searchLogoCandidates } from "./logos";
 import { exchangeGoogleCodeForProfile, OAuthConfigError, OAuthVerificationError } from "./oauth";
 import { assertCompanyInRoom, hashRoomPassphrase, requireRoomMember, verifyRoomPassphrase } from "./rooms";
-import { searchFallbackCompanyCatalog } from "./companyCatalogFallback";
+import { fallbackCompanyCatalogCount, searchFallbackCompanyCatalog } from "./companyCatalogFallback";
 import {
   applicationCreateSchema,
   applicationPatchSchema,
@@ -1017,12 +1017,21 @@ app.get("/api/company-catalog/search", async (c) => {
   )
     .bind(normalizedQuery, like, like, like, industry ?? null, industry ?? null)
     .all();
+  const countRow = await c.env.DB.prepare(`SELECT COUNT(*) AS count FROM company_catalog`).first<{ count: number }>();
+  const databaseCount = Number(countRow?.count ?? 0);
   const databaseRows = rows.results ?? [];
   const fallbackRows = databaseRows.length ? [] : searchFallbackCompanyCatalog(query, industry ?? null, sort ?? null);
+  const companies = databaseRows.length ? databaseRows : fallbackRows;
 
   return c.json({
-    companies: databaseRows.length ? databaseRows : fallbackRows,
-    status: databaseRows.length || fallbackRows.length ? "ok" : "empty",
+    catalog: {
+      builtInCount: fallbackCompanyCatalogCount,
+      databaseCount,
+      matched: companies.length,
+      searchedBuiltIn: !databaseRows.length,
+    },
+    companies,
+    status: companies.length ? "ok" : "empty",
   });
 });
 

@@ -58,6 +58,7 @@ import {
   type ApiUser,
   type ApiVaultItem,
   type CatalogCompany,
+  type CatalogSearchResponse,
   type LogoSearchResult,
   uploadRoomMemberAvatar,
 } from "./api";
@@ -83,6 +84,7 @@ type Company = {
   exchange: string | null;
   marketSegment: string;
   legalType: string;
+  careerUrl: string;
   mypageUrl: string;
   logoUrl?: string | null;
   status: CompanyStatus;
@@ -217,6 +219,7 @@ function mapApiCompany(row: ApiCompany, index: number): Company {
     exchange: row.exchange,
     marketSegment: row.market_segment ?? "",
     legalType: row.legal_type ?? "",
+    careerUrl: row.career_url ?? "",
     mypageUrl: row.mypage_url ?? "",
     logoUrl: row.logo_url,
     status: "research",
@@ -253,6 +256,7 @@ type CompanyDraft = {
   legalType: string;
   logoUrl: string;
   marketSegment: string;
+  careerUrl: string;
   mypageUrl: string;
   name: string;
   nameKana: string;
@@ -314,6 +318,7 @@ function createEmptyCompanyDraft(): CompanyDraft {
     legalType: "",
     logoUrl: "",
     marketSegment: "",
+    careerUrl: "",
     mypageUrl: "",
     name: "",
     nameKana: "",
@@ -1031,7 +1036,7 @@ function CompanyTable({ companies: rows, locale, roomId }: { companies: Company[
             <CompanyLogoMark company={company} locale={locale} />
             <span>
               <strong>{text(company.name, locale)}</strong>
-              <small>{[company.mypageUrl ? (locale === "ja" ? "MyPage URLあり" : "MyPage URL") : company.domain, formatTicker(company), company.legalType].filter(Boolean).join(" / ")}</small>
+              <small>{[company.mypageUrl ? (locale === "ja" ? "MyPage登録済み" : "MyPage saved") : company.careerUrl ? (locale === "ja" ? "採用ページ登録済み" : "Careers URL") : company.domain, formatTicker(company), company.legalType].filter(Boolean).join(" / ")}</small>
             </span>
           </span>
           <span>{text(company.industry, locale)}</span>
@@ -1076,7 +1081,9 @@ function CompanyDetail({ company, locale, roomId }: { company: Company; locale: 
           <DetailItem label={locale === "ja" ? "法人区分" : "Legal type"} value={company.legalType || (locale === "ja" ? "未登録" : "Not set")} />
           <DetailItem label={locale === "ja" ? "市場区分" : "Market segment"} value={company.marketSegment || (locale === "ja" ? "対象外・未登録" : "N/A or not set")} />
           <DetailItem label={locale === "ja" ? "証券コード" : "Ticker"} value={formatTicker(company) ?? (locale === "ja" ? "未登録" : "Not set")} />
+          <DetailItem label={locale === "ja" ? "採用ページURL" : "Careers URL"} value={company.careerUrl || (locale === "ja" ? "未登録" : "Not set")} />
           <DetailItem label="MyPage URL" value={company.mypageUrl || (locale === "ja" ? "未登録" : "Not set")} />
+          <DetailItem label={locale === "ja" ? "公式ドメイン" : "Official domain"} value={company.domain || (locale === "ja" ? "未登録" : "Not set")} />
           <DetailItem label={locale === "ja" ? "適性検査" : "Test"} value={company.test} />
           <DetailItem label={locale === "ja" ? "公開範囲" : "Visibility"} value={text(company.visibility, locale)} />
         </div>
@@ -1147,6 +1154,7 @@ function CompanyControls({
 }
 
 function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected: (company: CatalogCompany) => void }) {
+  const [catalogInfo, setCatalogInfo] = useState<CatalogSearchResponse["catalog"] | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CatalogCompany[]>([]);
@@ -1157,11 +1165,13 @@ function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected
     setMessage(null);
     try {
       const response = await searchCompanyCatalog(query);
+      setCatalogInfo(response.catalog);
       setResults(response.companies);
       if (!response.companies.length) {
         setMessage(locale === "ja" ? "辞書に候補がありません。" : "No catalog matches.");
       }
     } catch (error) {
+      setCatalogInfo(null);
       setMessage(error instanceof Error ? error.message : locale === "ja" ? "辞書を検索できませんでした" : "Could not search catalog");
     } finally {
       setSearching(false);
@@ -1184,6 +1194,7 @@ function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected
           <span>{searching ? (locale === "ja" ? "検索中" : "Searching") : locale === "ja" ? "検索" : "Search"}</span>
         </button>
       </form>
+      {catalogInfo ? <p className="catalog-source-note">{formatCatalogSourceNote(catalogInfo, locale)}</p> : null}
       {message ? <p className={message.includes("追加") || message.includes("Added") ? "form-status success" : "form-status"}>{message}</p> : null}
       {results.length ? (
         <div className="catalog-result-list">
@@ -1233,12 +1244,13 @@ function CompanyIntakePanel({
       legalType: inferLegalType(selectedCatalog.name),
       logoUrl: selectedCatalog.logo_url ?? current.logoUrl,
       marketSegment: selectedCatalog.market ?? current.marketSegment,
-      mypageUrl: selectedCatalog.domain ? `https://${selectedCatalog.domain}` : current.mypageUrl,
+      careerUrl: current.careerUrl,
+      mypageUrl: keepUserEnteredMyPageUrl(current.mypageUrl, current.domain),
       name: selectedCatalog.name,
       nameKana: selectedCatalog.name_kana ?? current.nameKana,
       ticker: selectedCatalog.ticker ?? current.ticker,
     }));
-    setMessage(locale === "ja" ? "辞書候補を入力欄へ反映しました。" : "Catalog candidate filled into the form.");
+    setMessage(locale === "ja" ? "辞書候補を反映しました。MyPage URLは必要に応じて手入力してください。" : "Catalog candidate filled. Enter the MyPage URL manually if needed.");
   }, [locale, selectedCatalog]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1264,6 +1276,7 @@ function CompanyIntakePanel({
         legalType: readFormText(data, "legalType"),
         logoUrl: readFormText(data, "logoUrl"),
         marketSegment: readFormText(data, "marketSegment"),
+        careerUrl: readFormText(data, "careerUrl"),
         mypageUrl: readFormText(data, "mypageUrl"),
         name,
         nameKana: readFormText(data, "nameKana"),
@@ -1347,7 +1360,11 @@ function CompanyIntakePanel({
       </label>
       <label>
         MyPage URL
-        <input name="mypageUrl" placeholder="https://..." type="url" value={draft.mypageUrl} onChange={(event) => setDraftField(setDraft, "mypageUrl", event.target.value)} />
+        <input name="mypageUrl" placeholder={locale === "ja" ? "採用マイページのURLのみ" : "Only the recruiting MyPage URL"} type="url" value={draft.mypageUrl} onChange={(event) => setDraftField(setDraft, "mypageUrl", event.target.value)} />
+      </label>
+      <label>
+        {locale === "ja" ? "採用ページURL" : "Careers URL"}
+        <input name="careerUrl" placeholder={locale === "ja" ? "募集要項・採用トップのURL" : "Recruiting page URL"} type="url" value={draft.careerUrl} onChange={(event) => setDraftField(setDraft, "careerUrl", event.target.value)} />
       </label>
       <label>
         {locale === "ja" ? "公式ドメイン" : "Official domain"}
@@ -2690,6 +2707,29 @@ function formatCatalogTicker(company: CatalogCompany): string | null {
     return null;
   }
   return company.exchange ? `${company.exchange}:${company.ticker}` : company.ticker;
+}
+
+function formatCatalogSourceNote(info: CatalogSearchResponse["catalog"], locale: Locale): string {
+  if (locale === "ja") {
+    const databaseLabel = info.databaseCount ? `D1辞書 ${info.databaseCount.toLocaleString("ja-JP")}件` : "D1辞書 未投入";
+    const builtInLabel = `内蔵辞書 ${info.builtInCount.toLocaleString("ja-JP")}件`;
+    return `${databaseLabel} / ${builtInLabel} / 表示候補 ${info.matched.toLocaleString("ja-JP")}件`;
+  }
+  const databaseLabel = info.databaseCount ? `${info.databaseCount.toLocaleString("en-US")} D1 records` : "No D1 catalog";
+  const builtInLabel = `${info.builtInCount.toLocaleString("en-US")} built-in records`;
+  return `${databaseLabel} / ${builtInLabel} / ${info.matched.toLocaleString("en-US")} matches`;
+}
+
+function keepUserEnteredMyPageUrl(currentUrl: string, currentDomain: string): string {
+  if (!currentUrl || !currentDomain) {
+    return currentUrl;
+  }
+  const normalizedUrl = currentUrl.replace(/\/+$/, "").toLowerCase();
+  const normalizedDomain = currentDomain.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/+$/, "").toLowerCase();
+  if (normalizedUrl === `https://${normalizedDomain}` || normalizedUrl === `http://${normalizedDomain}`) {
+    return "";
+  }
+  return currentUrl;
 }
 
 function mapApiTestReport(report: ApiTestReport, company: Company): TestReportDisplay {

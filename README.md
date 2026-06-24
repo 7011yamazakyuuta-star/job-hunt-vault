@@ -166,7 +166,7 @@ wrangler secret put LOGO_DEV_PUBLISHABLE_KEY
 
 `company_catalog` stores reference data such as JPX-listed company names, readings, ticker codes, market segments, industries, candidate domains, and provider metadata. It is separate from room-level `companies`, so importing or refreshing official data does not modify user progress, deadlines, notes, or Vault data. Room-level companies can keep copied identifiers such as `name_kana`, `ticker`, and `exchange` alongside user-managed deadlines and notes.
 
-Use `GET /api/company-catalog/search` for local catalog lookup and `GET /api/logo/search` for provider-backed logo candidates. Catalog search supports industry filtering and `sort=industry` or `sort=ticker`. See `docs/DATA_CATALOG.md`.
+Use `GET /api/company-catalog/search` for local catalog lookup and `GET /api/logo/search` for provider-backed logo candidates. Catalog search supports industry filtering and `sort=industry` or `sort=ticker`. If D1 has no imported catalog rows, the Worker falls back to a 117-record built-in Japanese company and organization catalog with common-name aliases. See `docs/DATA_CATALOG.md`.
 
 To convert a JPX/manual CSV into D1-ready SQL:
 

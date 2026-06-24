@@ -73,6 +73,10 @@ Options:
   --source        Catalog source label, default: jpx
   --country       Country code, default: JP
   --exchange      Default exchange when the CSV has no exchange column, default: TSE
+
+Accepted optional columns include aliases, alias, short_name, common_name, 別名, 略称, and 通称.
+National Tax Agency-style columns such as 法人番号, 商号又は名称, フリガナ, and 法人種別 are also accepted.
+Separate multiple aliases with semicolons, Japanese commas, or vertical bars.
 `);
 }
 
@@ -130,9 +134,16 @@ function normalizeCatalogRow(row, defaults) {
   const industry = pick(row, ["industry", "sector_33", "sector_17"]);
   const market = pick(row, ["market", "market_segment", "product_category"]);
   const exchange = pick(row, ["exchange"]) || defaults.defaultExchange;
+  const legalType = pick(row, ["legal_type", "organization_type", "corporate_type", "kind"]);
   const sourceId = pick(row, ["source_id", "id"]) || ticker || name;
-  const normalizedName = normalizeSearchText(name);
+  const aliases = splitAliases(pick(row, ["aliases", "alias", "short_name", "common_name"]));
+  const normalizedName = normalizeSearchText([name, nameKana, domain, ticker, ...aliases].filter(Boolean).join(" "));
   const id = stableId(defaults.source, sourceId || normalizedName);
+  const metadata = {
+    ...(aliases.length ? { aliases } : {}),
+    importedFrom: defaults.source,
+    ...(legalType ? { legalType } : {}),
+  };
 
   return {
     country: defaults.country,
@@ -142,7 +153,7 @@ function normalizeCatalogRow(row, defaults) {
     industry,
     logoUrl: pick(row, ["logo_url"]),
     market,
-    metadataJson: JSON.stringify({ importedFrom: defaults.source }),
+    metadataJson: JSON.stringify(metadata),
     name,
     nameKana,
     normalizedName,
@@ -168,14 +179,20 @@ function normalizeHeader(header) {
   const aliases = new Map([
     ["コード", "security_code"],
     ["証券コード", "security_code"],
+    ["法人番号", "source_id"],
     ["銘柄コード", "security_code"],
     ["銘柄名", "issue_name"],
     ["会社名", "company_name"],
     ["商号", "company_name"],
+    ["商号又は名称", "company_name"],
+    ["名称", "company_name"],
     ["銘柄名（カナ）", "name_kana"],
     ["銘柄名(カナ)", "name_kana"],
     ["会社名カナ", "company_name_kana"],
+    ["商号又は名称フリガナ", "name_kana"],
+    ["フリガナ", "name_kana"],
     ["読み", "reading"],
+    ["読み仮名", "reading"],
     ["市場・商品区分", "product_category"],
     ["市場区分", "market_segment"],
     ["市場", "market"],
@@ -185,8 +202,28 @@ function normalizeHeader(header) {
     ["取引所", "exchange"],
     ["ホームページ", "website"],
     ["会社ホームページ", "website"],
+    ["別名", "aliases"],
+    ["略称", "aliases"],
+    ["通称", "aliases"],
+    ["ブランド名", "aliases"],
+    ["法人種別", "legal_type"],
+    ["組織区分", "organization_type"],
   ]);
   return aliases.get(header.trim()) ?? compact;
+}
+
+function splitAliases(value) {
+  if (!value) {
+    return [];
+  }
+  return Array.from(
+    new Set(
+      value
+        .split(/[;；、|｜]/)
+        .map((alias) => alias.trim())
+        .filter(Boolean),
+    ),
+  );
 }
 
 function normalizeSearchText(value) {
