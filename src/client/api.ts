@@ -31,6 +31,8 @@ export type ApiCompany = {
   priority_deadline_at: string | null;
   ticker: string | null;
   exchange: string | null;
+  market_segment: string | null;
+  legal_type: string | null;
   career_url: string | null;
   mypage_url: string | null;
   logo_url: string | null;
@@ -47,6 +49,8 @@ export type CompanyCreateInput = {
   priorityDeadlineAt?: string;
   ticker?: string;
   exchange?: string;
+  marketSegment?: string;
+  legalType?: string;
   careerUrl?: string;
   mypageUrl?: string;
   logoUrl?: string;
