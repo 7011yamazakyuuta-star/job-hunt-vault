@@ -305,7 +305,7 @@ typecheck / test / build が通りました
 1. Google login または local mock auth でログイン状態にする。
 2. 個人ルーム、または共有ルームを作る。
 3. 設定タブで、表示文字のアバターを保存する。写真を試す場合はテスト画像だけを使う。
-4. 企業台帳で企業を1件追加する。
+4. 選考先一覧で企業・法人を1件追加する。
 5. 進捗タブで、その企業に選考状態を1件保存する。
 6. 日程タブで、その企業に予定またはTODOを1件保存する。
 7. 適性検査タブで、その企業にレポートを1件保存する。
@@ -407,6 +407,10 @@ Logo.dev の LOGO_DEV_SECRET_KEY と LOGO_DEV_PUBLISHABLE_KEY を登録済みで
 
 JPXなどの企業辞書を入れる場合は、まずD1 databaseを作成してmigrationを適用します。migrationで `companies` には読み、直近締切、証券コード、取引所の列が作られ、`company_catalog` にはJPXなどの参照データを入れる列が作られます。
 
+D1の `company_catalog` が空でも、代表企業・官公庁・法人を含む117件の内蔵辞書がフォールバックとして動きます。ここはCloudflare側で追加設定しなくて大丈夫です。
+
+国内のほぼすべてを狙う場合は、内蔵辞書ではなくD1へ公式データを取り込みます。上場企業はJPX、非上場企業・合同会社・国立研究開発法人・省庁・自治体などは国税庁法人番号データを使う方針です。
+
 Cloudflare上で手で触るところ:
 
 1. Workers & Pages
@@ -428,6 +432,10 @@ D1へ投入する例:
 ```bash
 npx wrangler d1 execute job-hunt-vault --remote --file ./work/company_catalog.sql
 ```
+
+CSVには `別名`、`略称`、`通称`、`aliases`、`alias`、`short_name`、`common_name` の列を足せます。たとえば `東京地下鉄株式会社` の別名に `東京メトロ` を入れると、画面で `東京メトロ` と検索して正式名称へ反映できます。
+
+辞書の `domain` は公式サイトやロゴ候補のための値です。採用ページURLやMyPage URLには自動入力しません。採用ページやMyPageは、実際の応募画面を確認してからアプリ上で手入力してください。
 
 `./work/jpx.csv` や `./work/company_catalog.sql` は作業用ファイルです。実データやDB exportをpublic repoへcommitしないでください。
 

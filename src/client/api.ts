@@ -91,6 +91,12 @@ export type CatalogCompany = {
 };
 
 export type CatalogSearchResponse = {
+  catalog: {
+    builtInCount: number;
+    databaseCount: number;
+    matched: number;
+    searchedBuiltIn: boolean;
+  };
   companies: CatalogCompany[];
   status: "ok" | "empty";
 };
