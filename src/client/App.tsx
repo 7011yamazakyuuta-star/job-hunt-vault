@@ -80,6 +80,7 @@ type Company = {
   dueDate: string | null;
   ticker: string | null;
   exchange: string | null;
+  logoUrl?: string | null;
   status: CompanyStatus;
   stage: LocalText;
   owner: LocalText;
@@ -111,13 +112,13 @@ const copy = {
   ja: {
     nav: {
       dashboard: "概要",
-      personal: "個人ルーム",
-      shared: "共有ルーム",
+      personal: "個人スペース",
+      shared: "共有スペース",
       join: "参加",
     },
     tabs: {
       overview: "全体",
-      companies: "企業台帳",
+      companies: "企業一覧",
       progress: "進捗",
       kanban: "ボード",
       tests: "適性検査",
@@ -136,7 +137,7 @@ const copy = {
       login: "Googleでログイン",
       refresh: "セッション更新",
       queue: "今日やること",
-      pipeline: "企業台帳",
+      pipeline: "選考企業",
       schedule: "日程",
       vault: "個人金庫",
       logos: "企業情報",
@@ -146,8 +147,8 @@ const copy = {
   en: {
     nav: {
       dashboard: "Overview",
-      personal: "Personal room",
-      shared: "Shared room",
+      personal: "Personal space",
+      shared: "Shared space",
       join: "Join",
     },
     tabs: {
@@ -171,7 +172,7 @@ const copy = {
       login: "Sign in with Google",
       refresh: "Refresh session",
       queue: "Priority queue",
-      pipeline: "Company ledger",
+      pipeline: "Selection list",
       schedule: "Schedule",
       vault: "Private vault",
       logos: "Company info",
@@ -298,6 +299,7 @@ function mapApiCompany(row: ApiCompany, index: number): Company {
     dueDate,
     ticker: row.ticker,
     exchange: row.exchange,
+    logoUrl: row.logo_url,
     status: "research",
     stage: { ja: "企業研究", en: "Research" },
     owner: { ja: "自分", en: "Me" },
@@ -312,7 +314,7 @@ const calendarItems = [
   {
     time: "10:00",
     title: { ja: "ソニーグループ 二次面接", en: "Sony Group second interview" },
-    meta: { ja: "オンライン / 共有メモ確認", en: "Online / review room notes" },
+    meta: { ja: "オンライン / 共有メモ確認", en: "Online / review shared notes" },
   },
   {
     time: "14:30",
@@ -366,7 +368,7 @@ const sampleTestReports: TestReportDisplay[] = [
     id: "sample-sony-tgweb",
     company: companies[0],
     type: "TG-WEB",
-    source: { ja: "共有メモ", en: "Room note" },
+    source: { ja: "共有メモ", en: "Shared note" },
     notes: "言語は時間配分、非言語は図表問題を先に確認。",
     visibility: "room",
     updated: { ja: "今日", en: "Today" },
@@ -430,10 +432,10 @@ export default function App() {
   return (
     <div className="app-shell" lang={locale}>
       <aside className="sidebar">
-        <Link className="brand" to="/" aria-label="Job Hunt Vault home">
+        <Link className="brand" to="/" aria-label={locale === "ja" ? "就活選考 ホーム" : "Selection Desk home"}>
           <span className="brand-mark">就</span>
           <span>
-            <strong>{locale === "ja" ? "就活台帳" : "Job Hunt Vault"}</strong>
+            <strong>{locale === "ja" ? "就活選考" : "Selection Desk"}</strong>
             <small>{t.status[health]}</small>
           </span>
         </Link>
@@ -447,14 +449,14 @@ export default function App() {
           ))}
         </nav>
 
-        <section className="room-switcher" aria-label={locale === "ja" ? "ルーム" : "Rooms"}>
+        <section className="room-switcher" aria-label={locale === "ja" ? "スペース" : "Rooms"}>
           <div className="room-switcher-heading">
-            <p>{locale === "ja" ? "ルーム" : "Rooms"}</p>
+            <p>{locale === "ja" ? "スペース" : "Rooms"}</p>
             <div className="room-quick-actions">
-              <Link className="room-action-button" to="/personal/new" title={locale === "ja" ? "個人ルームを作成" : "New personal room"}>
+              <Link className="room-action-button" to="/personal/new" title={locale === "ja" ? "個人スペースを作成" : "New personal space"}>
                 <LockKeyhole size={15} aria-hidden="true" />
               </Link>
-              <Link className="room-action-button" to="/rooms/new" title={locale === "ja" ? "共有ルームを作成" : "New shared room"}>
+              <Link className="room-action-button" to="/rooms/new" title={locale === "ja" ? "共有スペースを作成" : "New shared space"}>
                 <Plus size={16} aria-hidden="true" />
               </Link>
             </div>
@@ -476,7 +478,7 @@ export default function App() {
               ))
             ) : (
               <div className="room-empty-state">
-                <span>{locale === "ja" ? "まだルームなし" : "No rooms yet"}</span>
+                <span>{locale === "ja" ? "まだスペースなし" : "No rooms yet"}</span>
               </div>
             )}
           </div>
@@ -560,12 +562,12 @@ function HomePage({ locale, rooms, user }: { locale: Locale; rooms: ApiRoomListI
       <section className="entry-shell" aria-labelledby="entry-title">
         <div className="entry-panel">
           <span className="entry-mark">就</span>
-          <p className="eyebrow">Job Hunt Vault</p>
-          <h1 id="entry-title">{locale === "ja" ? "就活台帳" : "Job Hunt Vault"}</h1>
+          <p className="eyebrow">{locale === "ja" ? "選考ワークスペース" : "Selection workspace"}</p>
+          <h1 id="entry-title">{locale === "ja" ? "就活選考" : "Selection Desk"}</h1>
           <p>
             {locale === "ja"
-              ? "企業、締切、選考、認証情報をルームごとに整理します。"
-              : "Organize companies, deadlines, applications, and credentials by room."}
+              ? "企業、締切、面接、Webテスト、認証情報をひとつの作業場にまとめます。"
+              : "Keep companies, deadlines, interviews, tests, and credentials in one quiet workspace."}
           </p>
           {authErrorMessage ? (
             <div className="auth-error-notice" role="alert">
@@ -593,27 +595,27 @@ function HomePage({ locale, rooms, user }: { locale: Locale; rooms: ApiRoomListI
       <>
         <header className="page-header compact-header">
           <div>
-            <p className="eyebrow">{locale === "ja" ? "Workspace" : "Workspace"}</p>
-            <h1>{locale === "ja" ? "最初のルームを作成" : "Create your first room"}</h1>
+            <p className="eyebrow">{locale === "ja" ? "はじめる" : "Workspace"}</p>
+            <h1>{locale === "ja" ? "選考ワークスペースを作成" : "Create a selection workspace"}</h1>
           </div>
         </header>
-        <section className="home-action-grid" aria-label={locale === "ja" ? "ルーム作成" : "Room actions"}>
+        <section className="home-action-grid" aria-label={locale === "ja" ? "スペース作成" : "Room actions"}>
           <HomeActionLink
-            description={locale === "ja" ? "自分だけの就活台帳を作る" : "A private job-hunt vault"}
+            description={locale === "ja" ? "自分だけの選考管理を始める" : "Start a private selection workspace"}
             icon={LockKeyhole}
-            label={locale === "ja" ? "個人ルーム" : "Personal room"}
+            label={locale === "ja" ? "個人スペース" : "Personal space"}
             to="/personal/new"
           />
           <HomeActionLink
-            description={locale === "ja" ? "友人やメンターと同じ台帳を見る" : "Share a vault with friends or mentors"}
+            description={locale === "ja" ? "友人やメンターと選考状況を見る" : "Share progress with friends or mentors"}
             icon={UsersRound}
-            label={locale === "ja" ? "共有ルーム" : "Shared room"}
+            label={locale === "ja" ? "共有スペース" : "Shared space"}
             to="/rooms/new"
           />
           <HomeActionLink
-            description={locale === "ja" ? "受け取ったコードから入る" : "Enter with an invitation code"}
+            description={locale === "ja" ? "受け取ったコードで参加する" : "Enter with an invitation code"}
             icon={UserRoundPlus}
-            label={locale === "ja" ? "招待で参加" : "Join room"}
+            label={locale === "ja" ? "招待コード" : "Join with code"}
             to="/join"
           />
         </section>
@@ -625,15 +627,15 @@ function HomePage({ locale, rooms, user }: { locale: Locale; rooms: ApiRoomListI
     <>
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">{locale === "ja" ? "Rooms" : "Rooms"}</p>
-          <h1>{locale === "ja" ? "ルームを選択" : "Choose a room"}</h1>
+          <p className="eyebrow">{locale === "ja" ? "スペース" : "Rooms"}</p>
+          <h1>{locale === "ja" ? "スペースを選択" : "Choose a room"}</h1>
         </div>
         <Link className="primary-action" to="/rooms/new">
           <Plus size={18} aria-hidden="true" />
-          <span>{locale === "ja" ? "共有ルームを追加" : "New shared room"}</span>
+          <span>{locale === "ja" ? "共有スペースを追加" : "New shared room"}</span>
         </Link>
       </header>
-      <section className="room-home-grid" aria-label={locale === "ja" ? "ルーム一覧" : "Room list"}>
+      <section className="room-home-grid" aria-label={locale === "ja" ? "スペース一覧" : "Room list"}>
         {rooms.map((room) => (
           <HomeRoomCard key={room.id} locale={locale} room={room} />
         ))}
@@ -715,10 +717,10 @@ function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "s
   const isPersonal = mode === "personal";
   const title = isPersonal
     ? locale === "ja"
-      ? "個人ルームを作成"
+      ? "個人スペースを作成"
       : "New personal room"
     : locale === "ja"
-      ? "共有ルームを作成"
+      ? "共有スペースを作成"
       : "New shared room";
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -746,14 +748,14 @@ function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "s
     <>
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">{locale === "ja" ? "ルーム設定" : "Room setup"}</p>
+          <p className="eyebrow">{locale === "ja" ? "スペース設定" : "Room setup"}</p>
           <h1>{title}</h1>
         </div>
       </header>
       <div className="setup-layout">
         <form className="form-panel" onSubmit={handleSubmit}>
           <label>
-            {locale === "ja" ? "ルーム名" : "Room name"}
+            {locale === "ja" ? "スペース名" : "Room name"}
             <input name="name" placeholder={isPersonal ? (locale === "ja" ? "自分の就活" : "My job hunt") : "2027 東京"} />
           </label>
           {!isPersonal ? (
@@ -764,7 +766,7 @@ function StartRoomPage({ locale, mode }: { locale: Locale; mode: "personal" | "s
           ) : null}
           <label>
             {locale === "ja" ? "表示名" : "Display name"}
-            <input name="displayName" placeholder={locale === "ja" ? "ルーム内で表示する名前" : "Name shown in this room"} />
+            <input name="displayName" placeholder={locale === "ja" ? "スペース内で表示する名前" : "Name shown in this room"} />
           </label>
           {message ? <p className="form-status danger">{message}</p> : null}
           <button className="primary-action" type="submit" disabled={submitting}>
@@ -806,13 +808,13 @@ function JoinRoomPage({ locale }: { locale: Locale }) {
       <header className="page-header compact-header">
         <div>
           <p className="eyebrow">{locale === "ja" ? "招待" : "Invitation"}</p>
-          <h1>{locale === "ja" ? "共有ルームに参加" : "Join room"}</h1>
+          <h1>{locale === "ja" ? "共有スペースに参加" : "Join room"}</h1>
         </div>
       </header>
       <div className="setup-layout">
         <form className="form-panel" onSubmit={handleSubmit}>
           <label>
-            {locale === "ja" ? "ルームコード" : "Room code"}
+            {locale === "ja" ? "招待コード" : "Room code"}
             <input name="roomCode" defaultValue={roomCode ?? ""} required placeholder="rm_..." />
           </label>
           <label>
@@ -821,7 +823,7 @@ function JoinRoomPage({ locale }: { locale: Locale }) {
           </label>
           <label>
             {locale === "ja" ? "表示名" : "Display name"}
-            <input name="displayName" placeholder={locale === "ja" ? "ルーム内で表示する名前" : "Name shown in this room"} />
+            <input name="displayName" placeholder={locale === "ja" ? "スペース内で表示する名前" : "Name shown in this room"} />
           </label>
           {message ? <p className="form-status danger">{message}</p> : null}
           <button className="primary-action" type="submit" disabled={submitting}>
@@ -833,7 +835,7 @@ function JoinRoomPage({ locale }: { locale: Locale }) {
           <h2>{locale === "ja" ? "共有の境界" : "Shared boundary"}</h2>
           <p>
             {locale === "ja"
-              ? "企業情報と共有進捗はルーム内に出ます。個人の金庫と非公開進捗は本人だけに残ります。"
+              ? "企業情報と共有進捗はスペース内に出ます。個人の金庫と非公開進捗は本人だけに残ります。"
               : "Company data and room-visible progress are shared. Vault items and private progress stay personal."}
           </p>
         </div>
@@ -851,7 +853,7 @@ function RoomPage({ locale, tab }: { locale: Locale; tab: string }) {
     <>
       <header className="page-header compact-header">
         <div>
-          <p className="eyebrow">{locale === "ja" ? `ルーム ${activeRoomId}` : `Room ${activeRoomId}`}</p>
+          <p className="eyebrow">{locale === "ja" ? `スペース ${activeRoomId}` : `Room ${activeRoomId}`}</p>
           <h1>{title}</h1>
         </div>
         <Link className="secondary-action" to={`/rooms/${activeRoomId}/companies`}>
@@ -868,7 +870,7 @@ function RoomPage({ locale, tab }: { locale: Locale; tab: string }) {
 function RoomNav({ locale, roomId }: { locale: Locale; roomId: string }) {
   const t = copy[locale];
   return (
-    <nav className="tab-row" aria-label={locale === "ja" ? "ルーム" : "Room"}>
+    <nav className="tab-row" aria-label={locale === "ja" ? "スペース" : "Room"}>
       {roomTabs.map((item) => (
         <NavLink className="tab-item" key={item.key} to={`/rooms/${roomId}${item.suffix}`} end={item.suffix === ""}>
           <item.icon size={16} aria-hidden="true" />
@@ -913,7 +915,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
   if (tab === "companies") {
     return (
       <section className="surface table-surface">
-        <PanelHeader title={locale === "ja" ? "企業台帳" : "Companies"} actionLabel={locale === "ja" ? "追加" : "Add"} to={`/rooms/${roomId}/companies`} icon={Plus} />
+        <PanelHeader title={locale === "ja" ? "選考企業" : "Selection list"} actionLabel={locale === "ja" ? "追加" : "Add"} to={`/rooms/${roomId}/companies`} icon={Plus} />
         <CatalogSearchPanel locale={locale} onImported={reloadCompanies} roomId={roomId} />
         <CompanyIntakePanel locale={locale} onCreated={reloadCompanies} roomId={roomId} />
         <CompanyControls
@@ -924,7 +926,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
           setSortMode={setSortMode}
           sortMode={sortMode}
         />
-        {loadMessage ? <p className="form-status">{roomId === "demo-room" ? (locale === "ja" ? "プレビュー用の企業台帳を表示しています。" : "Showing preview company records.") : loadMessage}</p> : null}
+        {loadMessage ? <p className="form-status">{roomId === "demo-room" ? (locale === "ja" ? "プレビュー用の選考企業を表示しています。" : "Showing preview company records.") : loadMessage}</p> : null}
         <CompanyTable companies={filteredCompanies} locale={locale} roomId={roomId} />
       </section>
     );
@@ -977,7 +979,7 @@ function RoomContent({ locale, roomId, tab, companyId }: { locale: Locale; roomI
   return (
     <section className="split-layout">
       <div className="surface table-surface">
-        <PanelHeader title={locale === "ja" ? "ルーム全体" : "Room overview"} actionLabel={locale === "ja" ? "企業追加" : "New company"} to={`/rooms/${roomId}/companies`} icon={Plus} />
+        <PanelHeader title={locale === "ja" ? "スペース全体" : "Room overview"} actionLabel={locale === "ja" ? "企業追加" : "New company"} to={`/rooms/${roomId}/companies`} icon={Plus} />
         <CompanyTable companies={roomCompanies.slice(0, 4)} locale={locale} roomId={roomId} />
       </div>
       <aside className="right-rail">
@@ -1005,7 +1007,7 @@ function CompanyTable({ companies: rows, locale, roomId }: { companies: Company[
       {rows.map((company) => (
         <Link className="table-row" role="row" key={company.id} to={`/rooms/${roomId}/companies/${company.id}`}>
           <span className="company-cell">
-            <span className={`logo-chip ${company.accent}`}>{initialsFor(text(company.name, locale))}</span>
+            <CompanyLogoMark company={company} locale={locale} />
             <span>
               <strong>{text(company.name, locale)}</strong>
               <small>{[company.domain, formatTicker(company)].filter(Boolean).join(" / ")}</small>
@@ -1025,12 +1027,22 @@ function CompanyTable({ companies: rows, locale, roomId }: { companies: Company[
   );
 }
 
+function CompanyLogoMark({ company, locale, large = false }: { company: Company; locale: Locale; large?: boolean }) {
+  const label = text(company.name, locale);
+  const className = `logo-chip${large ? " large" : ""} ${company.logoUrl ? "logo-image-chip" : company.accent}`;
+  return (
+    <span className={className}>
+      {company.logoUrl ? <img alt="" loading="lazy" src={company.logoUrl} /> : initialsFor(label)}
+    </span>
+  );
+}
+
 function CompanyDetail({ company, locale }: { company: Company; locale: Locale }) {
   return (
     <section className="detail-layout">
       <div className="surface detail-main">
         <div className="company-title">
-          <span className={`logo-chip large ${company.accent}`}>{initialsFor(text(company.name, locale))}</span>
+          <CompanyLogoMark company={company} locale={locale} large />
           <div>
             <p className="eyebrow">{company.domain}</p>
             <h2>{text(company.name, locale)}</h2>
@@ -1154,7 +1166,7 @@ function CatalogSearchPanel({ locale, onImported, roomId }: { locale: Locale; on
         nameKana: company.name_kana ?? undefined,
         ticker: company.ticker ?? undefined,
       });
-      setMessage(locale === "ja" ? "辞書から台帳に追加しました。" : "Added from catalog.");
+      setMessage(locale === "ja" ? "辞書から選考企業に追加しました。" : "Added from catalog.");
       onImported();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : locale === "ja" ? "追加できませんでした" : "Could not add company");
@@ -1378,7 +1390,7 @@ function SchedulePanel({ companies: rows, locale, roomId }: { companies: Company
       return;
     }
     if (roomId === "demo-room") {
-      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save events.");
+      setMessage(locale === "ja" ? "保存はスペース作成後に使えます。" : "Create or join a room to save events.");
       return;
     }
     setSubmittingEvent(true);
@@ -1412,7 +1424,7 @@ function SchedulePanel({ companies: rows, locale, roomId }: { companies: Company
       return;
     }
     if (roomId === "demo-room") {
-      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save tasks.");
+      setMessage(locale === "ja" ? "保存はスペース作成後に使えます。" : "Create or join a room to save tasks.");
       return;
     }
     setSubmittingTask(true);
@@ -1467,7 +1479,7 @@ function SchedulePanel({ companies: rows, locale, roomId }: { companies: Company
           <label>
             {locale === "ja" ? "公開範囲" : "Visibility"}
             <select name="visibility" defaultValue="room">
-              <option value="room">{locale === "ja" ? "ルーム共有" : "Room"}</option>
+              <option value="room">{locale === "ja" ? "スペース共有" : "Room"}</option>
               <option value="private">{locale === "ja" ? "自分だけ" : "Private"}</option>
             </select>
           </label>
@@ -1508,7 +1520,7 @@ function SchedulePanel({ companies: rows, locale, roomId }: { companies: Company
           <label>
             {locale === "ja" ? "公開範囲" : "Visibility"}
             <select name="visibility" defaultValue="room">
-              <option value="room">{locale === "ja" ? "ルーム共有" : "Room"}</option>
+              <option value="room">{locale === "ja" ? "スペース共有" : "Room"}</option>
               <option value="private">{locale === "ja" ? "自分だけ" : "Private"}</option>
             </select>
           </label>
@@ -1679,7 +1691,7 @@ function ProgressPanel({ companies: rows, locale, roomId }: { companies: Company
       return;
     }
     if (roomId === "demo-room") {
-      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save progress.");
+      setMessage(locale === "ja" ? "保存はスペース作成後に使えます。" : "Create or join a room to save progress.");
       return;
     }
     setSubmitting(true);
@@ -1728,7 +1740,7 @@ function ProgressPanel({ companies: rows, locale, roomId }: { companies: Company
         <label>
           {locale === "ja" ? "公開範囲" : "Visibility"}
           <select name="visibility" defaultValue="room">
-            <option value="room">{locale === "ja" ? "ルーム共有" : "Room"}</option>
+            <option value="room">{locale === "ja" ? "スペース共有" : "Room"}</option>
             <option value="private">{locale === "ja" ? "自分だけ" : "Private"}</option>
           </select>
         </label>
@@ -1876,7 +1888,7 @@ function TestReportsPanel({ companies: rows, locale, roomId }: { companies: Comp
       return;
     }
     if (roomId === "demo-room") {
-      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save reports.");
+      setMessage(locale === "ja" ? "保存はスペース作成後に使えます。" : "Create or join a room to save reports.");
       return;
     }
     setSubmitting(true);
@@ -1919,12 +1931,12 @@ function TestReportsPanel({ companies: rows, locale, roomId }: { companies: Comp
         </label>
         <label>
           {locale === "ja" ? "出典" : "Source"}
-          <input name="source" placeholder={locale === "ja" ? "共有メモ、先輩レポートなど" : "Room note, past candidate"} />
+          <input name="source" placeholder={locale === "ja" ? "共有メモ、先輩レポートなど" : "Shared note, past candidate"} />
         </label>
         <label>
           {locale === "ja" ? "公開範囲" : "Visibility"}
           <select name="visibility" defaultValue="room">
-            <option value="room">{locale === "ja" ? "ルーム共有" : "Room"}</option>
+            <option value="room">{locale === "ja" ? "スペース共有" : "Room"}</option>
             <option value="private">{locale === "ja" ? "自分だけ" : "Private"}</option>
           </select>
         </label>
@@ -2016,7 +2028,7 @@ function VaultPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
       return;
     }
     if (roomId === "demo-room") {
-      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save vault items.");
+      setMessage(locale === "ja" ? "保存はスペース作成後に使えます。" : "Create or join a room to save vault items.");
       return;
     }
     setSubmitting(true);
@@ -2130,7 +2142,7 @@ function VaultPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
           <h2>{locale === "ja" ? "非公開の扱い" : "Private handling"}</h2>
           <p>
             {locale === "ja"
-              ? "パスフレーズはブラウザ内で鍵を作るためだけに使い、Workerへ送信しません。共有ルームに企業情報を出しても、金庫の中身は本人の暗号文として分離されます。"
+              ? "パスフレーズはブラウザ内で鍵を作るためだけに使い、Workerへ送信しません。共有スペースに企業情報を出しても、金庫の中身は本人の暗号文として分離されます。"
               : "The passphrase is used only in the browser to derive the key. The Worker stores encrypted JSON, and Vault items stay personal even in shared rooms."}
           </p>
         </div>
@@ -2175,7 +2187,7 @@ function SettingsPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
       return;
     }
     if (roomId === "demo-room") {
-      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to save avatar settings.");
+      setMessage(locale === "ja" ? "保存はスペース作成後に使えます。" : "Create or join a room to save avatar settings.");
       return;
     }
     const data = new FormData(event.currentTarget);
@@ -2205,7 +2217,7 @@ function SettingsPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
       return;
     }
     if (roomId === "demo-room") {
-      setMessage(locale === "ja" ? "保存はルーム作成後に使えます。" : "Create or join a room to upload an avatar.");
+      setMessage(locale === "ja" ? "保存はスペース作成後に使えます。" : "Create or join a room to upload an avatar.");
       return;
     }
     const file = new FormData(event.currentTarget).get("photo");
@@ -2237,7 +2249,7 @@ function SettingsPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
 
   const handleDeletePhoto = async () => {
     if (!user || roomId === "demo-room") {
-      setMessage(locale === "ja" ? "ルーム作成後に使えます。" : "Create or join a room first.");
+      setMessage(locale === "ja" ? "スペース作成後に使えます。" : "Create or join a room first.");
       return;
     }
     setSaving(true);
@@ -2257,7 +2269,7 @@ function SettingsPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
   return (
     <section className="settings-layout">
       <div className="surface settings-grid">
-        <DetailItem label={locale === "ja" ? "ルーム種別" : "Room type"} value={locale === "ja" ? "共有" : "Shared"} />
+        <DetailItem label={locale === "ja" ? "スペース種別" : "Room type"} value={locale === "ja" ? "共有" : "Shared"} />
         <DetailItem label={locale === "ja" ? "参加方法" : "Join method"} value={locale === "ja" ? "コード + 合言葉" : "Room code + passphrase"} />
         <DetailItem label={locale === "ja" ? "アバター保存" : "Avatar storage"} value="Private R2" />
         <DetailItem label={locale === "ja" ? "秘密情報" : "Private keys"} value={locale === "ja" ? "管理画面で設定" : "Set in dashboard"} />
@@ -2267,7 +2279,7 @@ function SettingsPanel({ locale, roomId }: { locale: Locale; roomId: string }) {
         <div className="avatar-heading">
           {previewUrl ? <img alt="" src={previewUrl} /> : <span className="avatar-preview">{currentMember ? memberAvatarText(currentMember) : initialsFor(user?.name ?? "Me")}</span>}
           <div>
-            <h2>{locale === "ja" ? "ルーム内アバター" : "Room avatar"}</h2>
+            <h2>{locale === "ja" ? "スペース内アバター" : "Room avatar"}</h2>
             <p>{locale === "ja" ? "写真はprivate R2に保存し、Workerの認可済みAPIだけで配信します。" : "Photos stay in private R2 and are served only through authorized Worker routes."}</p>
           </div>
         </div>
@@ -2346,7 +2358,7 @@ function LogoProviderPanel({ locale, company }: { locale: Locale; company?: Comp
       const response = await searchLogoCandidates(trimmed);
       setResults(response.results);
       if (response.status === "provider-unconfigured") {
-        setMessage(locale === "ja" ? "候補検索はCloudflare設定後に使えます。" : "Candidate search is available after Cloudflare setup.");
+        setMessage(locale === "ja" ? "Cloudflare Secrets に LOGO_DEV_SECRET_KEY を追加すると候補検索が使えます。" : "Add LOGO_DEV_SECRET_KEY to Cloudflare Secrets to enable candidate search.");
       } else if (!response.results.length) {
         setMessage(locale === "ja" ? "候補が見つかりませんでした。" : "No candidates found.");
       }
@@ -2410,10 +2422,10 @@ function SetupNotes({ locale, mode }: { locale: Locale; mode: "personal" | "shar
       <p>
         {isPersonal
           ? locale === "ja"
-            ? "最初は自分だけの部屋として作り、必要になったら共有ルームに変換できます。"
+            ? "最初は自分だけのスペースとして作り、必要になったら共有スペースに変換できます。"
             : "A personal room starts private and can later be converted into a shared room."
           : locale === "ja"
-            ? "企業情報と共有進捗だけをルームに出します。個人の金庫と非公開進捗は混ぜません。"
+            ? "企業情報と共有進捗だけをスペースに出します。個人の金庫と非公開進捗は混ぜません。"
             : "Shared rooms expose company and room-visible progress, while Vault and private progress stay personal."}
       </p>
     </div>
@@ -2487,17 +2499,17 @@ function StatusBadge({ locale, status }: { locale: Locale; status: CompanyStatus
 
 function titleForTab(tab: string, locale: Locale): string {
   const labels: Record<string, LocalText> = {
-    overview: { ja: "ルーム全体", en: "Room overview" },
-    companies: { ja: "企業台帳", en: "Companies" },
+    overview: { ja: "スペース全体", en: "Room overview" },
+    companies: { ja: "企業一覧", en: "Companies" },
     "company-detail": { ja: "企業詳細", en: "Company detail" },
     progress: { ja: "進捗マトリクス", en: "Progress matrix" },
     kanban: { ja: "選考ボード", en: "Selection board" },
     tests: { ja: "適性検査レポート", en: "Test reports" },
     calendar: { ja: "日程", en: "Calendar" },
     vault: { ja: "個人金庫", en: "Personal Vault" },
-    settings: { ja: "ルーム設定", en: "Room settings" },
+    settings: { ja: "スペース設定", en: "Room settings" },
   };
-  return text(labels[tab] ?? { ja: "ルーム", en: "Room" }, locale);
+  return text(labels[tab] ?? { ja: "スペース", en: "Room" }, locale);
 }
 
 function filterCompanies(rows: Company[], status: CompanyStatus | "all", industry: string, locale: Locale): Company[] {
@@ -2568,7 +2580,7 @@ function visibilityLabel(visibility: "room" | "private", locale: Locale): string
   if (visibility === "private") {
     return locale === "ja" ? "自分だけ" : "Private";
   }
-  return locale === "ja" ? "ルーム共有" : "Room";
+  return locale === "ja" ? "スペース共有" : "Room";
 }
 
 function applicationStatusLabel(status: string, locale: Locale): string {
