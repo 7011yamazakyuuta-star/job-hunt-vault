@@ -1161,11 +1161,12 @@ function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected
   const [results, setResults] = useState<CatalogCompany[]>([]);
   const [searching, setSearching] = useState(false);
   const searchRequestId = useRef(0);
+  const hasLoadedInitialSuggestions = useRef(false);
   const runCatalogSearch = useCallback(
-    async (rawQuery: string, { showEmptyMessage }: { showEmptyMessage: boolean }) => {
+    async (rawQuery: string, { allowEmpty, showEmptyMessage }: { allowEmpty?: boolean; showEmptyMessage: boolean }) => {
       const searchQuery = rawQuery.trim();
       const requestId = (searchRequestId.current += 1);
-      if (!searchQuery) {
+      if (!searchQuery && !allowEmpty) {
         setCatalogInfo(null);
         setResults([]);
         setMessage(null);
@@ -1231,7 +1232,15 @@ function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected
 
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await runCatalogSearch(query, { showEmptyMessage: true });
+    await runCatalogSearch(query, { allowEmpty: true, showEmptyMessage: true });
+  };
+
+  const handleFocus = () => {
+    if (query.trim() || hasLoadedInitialSuggestions.current) {
+      return;
+    }
+    hasLoadedInitialSuggestions.current = true;
+    void runCatalogSearch("", { allowEmpty: true, showEmptyMessage: false });
   };
 
   return (
@@ -1241,6 +1250,7 @@ function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected
           {locale === "ja" ? "企業・法人辞書" : "Company and organization catalog"}
           <input
             onChange={(event) => setQuery(event.target.value)}
+            onFocus={handleFocus}
             placeholder={locale === "ja" ? "企業名・法人名・証券コードで検索" : "Search name, organization, or ticker"}
             value={query}
           />
