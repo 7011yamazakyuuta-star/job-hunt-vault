@@ -20,7 +20,7 @@ import {
   UserRoundPlus,
   UsersRound,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
@@ -1159,23 +1159,78 @@ function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CatalogCompany[]>([]);
   const [searching, setSearching] = useState(false);
+  const searchRequestId = useRef(0);
+  const runCatalogSearch = useCallback(
+    async (rawQuery: string, { showEmptyMessage }: { showEmptyMessage: boolean }) => {
+      const searchQuery = rawQuery.trim();
+      const requestId = (searchRequestId.current += 1);
+      if (!searchQuery) {
+        setCatalogInfo(null);
+        setResults([]);
+        setMessage(null);
+        setSearching(false);
+        return;
+      }
+
+      setSearching(true);
+      setMessage(null);
+      try {
+        const response = await searchCompanyCatalog(searchQuery);
+        if (searchRequestId.current !== requestId) {
+          return;
+        }
+        setCatalogInfo(response.catalog);
+        setResults(response.companies);
+        if (!response.companies.length && showEmptyMessage) {
+          setMessage(locale === "ja" ? "辞書に候補がありません。" : "No catalog matches.");
+        }
+      } catch (error) {
+        if (searchRequestId.current !== requestId) {
+          return;
+        }
+        setCatalogInfo(null);
+        setResults([]);
+        setMessage(error instanceof Error ? error.message : locale === "ja" ? "辞書を検索できませんでした" : "Could not search catalog");
+      } finally {
+        if (searchRequestId.current === requestId) {
+          setSearching(false);
+        }
+      }
+    },
+    [locale],
+  );
+
+  useEffect(() => {
+    const searchQuery = query.trim();
+    if (!searchQuery) {
+      searchRequestId.current += 1;
+      setCatalogInfo(null);
+      setResults([]);
+      setMessage(null);
+      setSearching(false);
+      return;
+    }
+
+    let cancelled = false;
+    const timerId = window.setTimeout(() => {
+      void (async () => {
+        if (cancelled) {
+          return;
+        }
+        await runCatalogSearch(searchQuery, { showEmptyMessage: false });
+      })();
+    }, 220);
+
+    return () => {
+      cancelled = true;
+      searchRequestId.current += 1;
+      window.clearTimeout(timerId);
+    };
+  }, [query, runCatalogSearch]);
+
   const handleSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSearching(true);
-    setMessage(null);
-    try {
-      const response = await searchCompanyCatalog(query);
-      setCatalogInfo(response.catalog);
-      setResults(response.companies);
-      if (!response.companies.length) {
-        setMessage(locale === "ja" ? "辞書に候補がありません。" : "No catalog matches.");
-      }
-    } catch (error) {
-      setCatalogInfo(null);
-      setMessage(error instanceof Error ? error.message : locale === "ja" ? "辞書を検索できませんでした" : "Could not search catalog");
-    } finally {
-      setSearching(false);
-    }
+    await runCatalogSearch(query, { showEmptyMessage: true });
   };
 
   return (
