@@ -335,6 +335,56 @@ deploy 済みです。Worker URL は https://... です
 
 Worker URL は secret ではありません。貼ってOKです。
 
+### API token で deploy する場合
+
+CloudflareのGitHub連携で自動deployするだけなら、通常はこの作業は不要です。CodexやPowerShellから `npx wrangler deploy` まで実行したい場合だけ、Cloudflare API tokenにWorker更新権限が必要です。
+
+今回のようにD1 importだけできて `workers/scripts/...` で失敗する場合、D1用の権限は足りていますが、Workerを更新する権限が足りていません。
+
+Cloudflareで触る場所:
+
+1. 右上のユーザーアイコン
+2. My Profile
+3. API Tokens
+4. 対象tokenの Edit、または Create Token
+5. Permissions に必要な権限を追加
+6. Continue to summary
+7. 保存
+
+最低限の目安:
+
+- D1へSQLを投入する: `Account` / `D1` / `Edit`
+- R2 bucketを作成・更新する: `Account` / `Workers R2 Storage` / `Edit`
+- `wrangler deploy` する: `Account` / `Workers Scripts` / `Edit`
+
+Account Resources は、可能なら対象アカウントだけに絞ってください。Client IP Address Filtering と TTL は任意です。
+
+tokenの値は一度しか表示されません。このチャット、GitHub、`.env`、`.dev.vars` には貼らないでください。
+
+Windows PowerShellでCodex側から使えるようにする例:
+
+```powershell
+[Environment]::SetEnvironmentVariable("CLOUDFLARE_API_TOKEN", "ここにtokenを貼る", "User")
+```
+
+次のコマンドで、値を表示せずに設定済みかだけ確認できます。
+
+```powershell
+[bool][Environment]::GetEnvironmentVariable("CLOUDFLARE_API_TOKEN", "User")
+```
+
+このチャットでCodexに伝えること:
+
+```text
+CLOUDFLARE_API_TOKEN をUser環境変数に設定済みです。
+```
+
+伝えないこと:
+
+- tokenの実際の値
+- token発行画面に出る `curl ... Bearer ...` の全文
+- Cloudflareに保存したsecretの中身
+
 ## 11. よくあるつまずき
 
 ### Google login 後に `Authentication is not configured`
@@ -407,7 +457,9 @@ Logo.dev の LOGO_DEV_SECRET_KEY と LOGO_DEV_PUBLISHABLE_KEY を登録済みで
 
 JPXなどの企業辞書を入れる場合は、まずD1 databaseを作成してmigrationを適用します。migrationで `companies` には読み、直近締切、証券コード、取引所の列が作られ、`company_catalog` にはJPXなどの参照データを入れる列が作られます。
 
-D1の `company_catalog` が空でも、代表企業・官公庁・法人を含む117件の内蔵辞書がフォールバックとして動きます。ここはCloudflare側で追加設定しなくて大丈夫です。
+D1の `company_catalog` が空でも、代表企業・官公庁・法人を含む117件の内蔵辞書が動きます。現在の実装では、検索語がある場合はD1の結果と内蔵辞書を統合して出します。ここはCloudflare側で追加設定しなくて大丈夫です。
+
+このプロジェクトの現行D1には、初期投入として約5万件の企業・法人辞書を入れています。これは全国全件ではなく、東京都・神奈川県・愛知県・大阪府の国税庁法人番号データの一部と、内蔵の主要企業・官公庁・法人データです。国内網羅をさらに広げる場合は、都道府県CSVを追加で分割投入します。
 
 国内のほぼすべてを狙う場合は、内蔵辞書ではなくD1へ公式データを取り込みます。上場企業はJPX、非上場企業・合同会社・国立研究開発法人・省庁・自治体などは国税庁法人番号データを使う方針です。
 
