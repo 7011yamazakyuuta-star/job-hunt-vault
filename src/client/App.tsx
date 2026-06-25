@@ -407,10 +407,10 @@ export default function App() {
   return (
     <div className="app-shell" lang={locale}>
       <aside className="sidebar">
-        <Link className="brand" to="/" aria-label={locale === "ja" ? "就活選考 ホーム" : "Selection Desk home"}>
+        <Link className="brand" to="/" aria-label={locale === "ja" ? "選考管理 ホーム" : "Selection Desk home"}>
           <span className="brand-mark">就</span>
           <span>
-            <strong>{locale === "ja" ? "就活選考" : "Selection Desk"}</strong>
+            <strong>{locale === "ja" ? "選考管理" : "Selection Desk"}</strong>
             <small>{t.status[health]}</small>
           </span>
         </Link>
@@ -538,7 +538,7 @@ function HomePage({ locale, rooms, user }: { locale: Locale; rooms: ApiRoomListI
         <div className="entry-panel">
           <span className="entry-mark">就</span>
           <p className="eyebrow">{locale === "ja" ? "選考ワークスペース" : "Selection workspace"}</p>
-          <h1 id="entry-title">{locale === "ja" ? "就活選考" : "Selection Desk"}</h1>
+          <h1 id="entry-title">{locale === "ja" ? "選考管理" : "Selection Desk"}</h1>
           <p>
             {locale === "ja"
               ? "企業、締切、面接、Webテスト、認証情報をひとつの作業場にまとめます。"
