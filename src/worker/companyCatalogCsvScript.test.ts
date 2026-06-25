@@ -31,6 +31,8 @@ describe("company catalog CSV import script", () => {
     expect(sql).toContain("東京地下鉄株式会社");
     expect(sql).toContain("東京メトロ tokyo metro");
     expect(sql).toContain('"legalType":"株式会社"');
+    expect(sql).not.toContain("BEGIN TRANSACTION;");
+    expect(sql).not.toContain("COMMIT;");
   });
 
   it("imports headerless NTA-style rows into chunked SQL files", async () => {
@@ -91,5 +93,7 @@ describe("company catalog CSV import script", () => {
     expect(sql).toContain("サンプルゴウドウガイシャ");
     expect(sql).toContain('"legalType":"合同会社"');
     expect(sql).toContain('"prefecture":"東京都"');
+    expect(sql).not.toContain("BEGIN TRANSACTION;");
+    expect(sql).not.toContain("COMMIT;");
   });
 });
