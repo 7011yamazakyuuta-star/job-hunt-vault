@@ -12,6 +12,7 @@ export type CatalogFallbackCompany = {
   ticker: string | null;
   exchange: string | null;
   logo_url: string | null;
+  metadata_json: string | null;
   updated_at: string;
 };
 
@@ -189,8 +190,34 @@ function row(
     ticker,
     exchange: ticker ? "TSE" : null,
     logo_url: null,
+    metadata_json: JSON.stringify({ aliases, importedFrom: "built-in", legalType: inferLegalType(name) }),
     updated_at: fallbackUpdatedAt,
   };
+}
+
+function inferLegalType(name: string): string {
+  if (name.includes("合同会社")) {
+    return "合同会社";
+  }
+  if (name.includes("国立研究開発法人")) {
+    return "国立研究開発法人";
+  }
+  if (name.includes("独立行政法人")) {
+    return "独立行政法人";
+  }
+  if (name.includes("国立大学法人")) {
+    return "国立大学法人";
+  }
+  if (name.includes("学校法人")) {
+    return "学校法人";
+  }
+  if (name.includes("省")) {
+    return "省庁";
+  }
+  if (name.includes("市役所") || name.includes("府庁") || name.includes("都庁")) {
+    return "地方自治体";
+  }
+  return "株式会社";
 }
 
 function normalizeCatalogSearchText(input: string): string {

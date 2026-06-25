@@ -174,6 +174,12 @@ To convert a JPX/manual CSV into D1-ready SQL:
 npm run catalog:sql -- --input ./work/jpx.csv --out ./work/company_catalog.sql
 ```
 
+For tens of thousands of NTA corporate-number rows, generate chunked SQL files:
+
+```bash
+npm run catalog:sql -- --preset nta --source nta --input ./work/nta_tokyo.csv --out-dir ./work/catalog-sql --chunk-rows 5000 --active-only
+```
+
 ## Turnstile Setup
 
 Turnstile is optional in this MVP. If enabled later, validate tokens server-side before sensitive flows such as room join and invitation creation. Store the secret using:

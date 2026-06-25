@@ -1202,7 +1202,7 @@ function CatalogSearchPanel({ locale, onSelected }: { locale: Locale; onSelected
             <div className="catalog-result-row" key={company.id}>
               <span>
                 <strong>{company.name}</strong>
-                <small>{[company.industry, company.market, formatCatalogTicker(company)].filter(Boolean).join(" / ")}</small>
+                <small>{[company.industry, company.market, legalTypeFromCatalog(company), formatCatalogTicker(company)].filter(Boolean).join(" / ")}</small>
               </span>
               <button className="secondary-action" type="button" onClick={() => onSelected({ ...company })}>
                 <ArrowRight size={15} aria-hidden="true" />
@@ -1241,7 +1241,7 @@ function CompanyIntakePanel({
       domain: selectedCatalog.domain ?? current.domain,
       exchange: selectedCatalog.exchange ?? current.exchange,
       industry: selectedCatalog.industry ?? current.industry,
-      legalType: inferLegalType(selectedCatalog.name),
+      legalType: legalTypeFromCatalog(selectedCatalog) || inferLegalType(selectedCatalog.name),
       logoUrl: selectedCatalog.logo_url ?? current.logoUrl,
       marketSegment: selectedCatalog.market ?? current.marketSegment,
       careerUrl: current.careerUrl,
@@ -2718,6 +2718,18 @@ function formatCatalogSourceNote(info: CatalogSearchResponse["catalog"], locale:
   const databaseLabel = info.databaseCount ? `${info.databaseCount.toLocaleString("en-US")} D1 records` : "No D1 catalog";
   const builtInLabel = `${info.builtInCount.toLocaleString("en-US")} built-in records`;
   return `${databaseLabel} / ${builtInLabel} / ${info.matched.toLocaleString("en-US")} matches`;
+}
+
+function legalTypeFromCatalog(company: CatalogCompany): string {
+  if (!company.metadata_json) {
+    return "";
+  }
+  try {
+    const metadata = JSON.parse(company.metadata_json) as { legalType?: unknown };
+    return typeof metadata.legalType === "string" ? metadata.legalType : "";
+  } catch {
+    return "";
+  }
 }
 
 function keepUserEnteredMyPageUrl(currentUrl: string, currentDomain: string): string {
