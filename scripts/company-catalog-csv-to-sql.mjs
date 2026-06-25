@@ -477,9 +477,7 @@ function buildSqlFile(rows, { fileName, part }) {
   return [
     `-- Generated from ${label} for company_catalog.`,
     "-- Do not commit official-source raw dumps or production DB exports.",
-    "BEGIN TRANSACTION;",
     ...rows.map(toUpsertSql),
-    "COMMIT;",
     "",
   ].join("\n");
 }
