@@ -14,7 +14,7 @@ import { getOptionalNumber, jsonError, parseJson } from "./http";
 import { normalizeLogoDomain, resolveLogoForDomain, searchLogoCandidates } from "./logos";
 import { exchangeGoogleCodeForProfile, OAuthConfigError, OAuthVerificationError } from "./oauth";
 import { assertCompanyInRoom, hashRoomPassphrase, requireRoomMember, verifyRoomPassphrase } from "./rooms";
-import { fallbackCompanyCatalogCount, searchFallbackCompanyCatalog } from "./companyCatalogFallback";
+import { fallbackCompanyCatalogCount, searchFallbackCompanyCatalog, type CatalogFallbackCompany } from "./companyCatalogFallback";
 import {
   applicationCreateSchema,
   applicationPatchSchema,
@@ -1019,16 +1019,17 @@ app.get("/api/company-catalog/search", async (c) => {
     .all();
   const countRow = await c.env.DB.prepare(`SELECT COUNT(*) AS count FROM company_catalog`).first<{ count: number }>();
   const databaseCount = Number(countRow?.count ?? 0);
-  const databaseRows = rows.results ?? [];
-  const fallbackRows = databaseRows.length ? [] : searchFallbackCompanyCatalog(query, industry ?? null, sort ?? null);
-  const companies = databaseRows.length ? databaseRows : fallbackRows;
+  const databaseRows = (rows.results ?? []) as CatalogFallbackCompany[];
+  const shouldSearchBuiltIn = Boolean(normalizedQuery);
+  const fallbackRows = shouldSearchBuiltIn ? searchFallbackCompanyCatalog(query, industry ?? null, sort ?? null) : [];
+  const companies = mergeCatalogRows(fallbackRows, databaseRows).slice(0, 50);
 
   return c.json({
     catalog: {
       builtInCount: fallbackCompanyCatalogCount,
       databaseCount,
       matched: companies.length,
-      searchedBuiltIn: !databaseRows.length,
+      searchedBuiltIn: shouldSearchBuiltIn,
     },
     companies,
     status: companies.length ? "ok" : "empty",
@@ -1164,6 +1165,33 @@ async function createEventOrTask(c: AppContext, kind: "event" | "task"): Promise
 
 function normalizeCatalogSearchText(input: string): string {
   return input.trim().toLowerCase().normalize("NFKC");
+}
+
+function mergeCatalogRows(primaryRows: CatalogFallbackCompany[], secondaryRows: CatalogFallbackCompany[]): CatalogFallbackCompany[] {
+  const seen = new Set<string>();
+  const merged: CatalogFallbackCompany[] = [];
+  for (const row of [...primaryRows, ...secondaryRows]) {
+    const key = catalogRowKey(row);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    merged.push(row);
+  }
+  return merged;
+}
+
+function catalogRowKey(row: CatalogFallbackCompany): string {
+  if (row.ticker && row.exchange) {
+    return `ticker:${row.exchange}:${row.ticker}`.toLowerCase();
+  }
+  if (row.ticker) {
+    return `ticker:${row.ticker}`.toLowerCase();
+  }
+  if (row.domain) {
+    return `domain:${row.domain}`.toLowerCase();
+  }
+  return `name:${normalizeCatalogSearchText(row.name)}`;
 }
 
 let companyProfileColumnsReady = false;
