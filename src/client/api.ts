@@ -73,6 +73,18 @@ export type LogoSearchResponse = {
   results: LogoSearchResult[];
 };
 
+export type LogoResolveResponse = {
+  domain: string;
+  status: "cached" | "resolved" | "provider-unconfigured";
+  source: "cache" | "logo.dev" | "none";
+  logoUrl: string | null;
+  provider: {
+    name: "logo.dev";
+    mode: "domain-image";
+    publishableKeyConfigured: boolean;
+  };
+};
+
 export type CatalogCompany = {
   id: string;
   source: string;
@@ -282,6 +294,11 @@ export async function createCompany(roomId: string, input: CompanyCreateInput): 
 export async function searchLogoCandidates(query: string): Promise<LogoSearchResponse> {
   const params = new URLSearchParams({ q: query, strategy: "suggest" });
   return apiGet(`/api/logo/search?${params.toString()}`);
+}
+
+export async function resolveLogoForDomain(domain: string): Promise<LogoResolveResponse> {
+  const params = new URLSearchParams({ domain });
+  return apiGet(`/api/logo/resolve?${params.toString()}`);
 }
 
 export async function searchCompanyCatalog(query: string): Promise<CatalogSearchResponse> {
