@@ -45,6 +45,7 @@ import {
   listTasks,
   listVaultItems,
   listRoomMembers,
+  resolveLogoForDomain,
   searchCompanyCatalog,
   searchLogoCandidates,
   setRoomMemberAvatar,
@@ -1286,6 +1287,7 @@ function CompanyIntakePanel({
   const [message, setMessage] = useState<string | null>(null);
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const logoResolveRequestId = useRef(0);
 
   useEffect(() => {
     if (!selectedCatalog) {
@@ -1307,6 +1309,35 @@ function CompanyIntakePanel({
     }));
     setMessage(locale === "ja" ? "辞書候補を反映しました。MyPage URLは必要に応じて手入力してください。" : "Catalog candidate filled. Enter the MyPage URL manually if needed.");
   }, [locale, selectedCatalog]);
+
+  useEffect(() => {
+    const domain = selectedCatalog?.domain?.trim();
+    if (!domain || selectedCatalog?.logo_url) {
+      return;
+    }
+
+    const requestId = (logoResolveRequestId.current += 1);
+    void (async () => {
+      try {
+        const response = await resolveLogoForDomain(domain);
+        if (logoResolveRequestId.current !== requestId || !response.logoUrl) {
+          return;
+        }
+        setDraft((current) => {
+          if (current.domain !== domain || current.logoUrl) {
+            return current;
+          }
+          return { ...current, logoUrl: response.logoUrl ?? "" };
+        });
+      } catch {
+        // Logo lookup is optional; the company can still be saved normally.
+      }
+    })();
+
+    return () => {
+      logoResolveRequestId.current += 1;
+    };
+  }, [selectedCatalog]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
