@@ -1008,7 +1008,7 @@ app.get("/api/company-catalog/search", async (c) => {
   const like = `%${normalizedQuery}%`;
 
   const rows = await c.env.DB.prepare(
-    `SELECT id, source, source_id, country, name, name_kana, normalized_name, domain, industry, market, ticker, exchange, logo_url, updated_at
+    `SELECT id, source, source_id, country, name, name_kana, normalized_name, domain, industry, market, ticker, exchange, logo_url, metadata_json, updated_at
      FROM company_catalog
      WHERE (? = '' OR normalized_name LIKE ? OR LOWER(name) LIKE ? OR ticker LIKE ?)
        AND (? IS NULL OR industry = ?)

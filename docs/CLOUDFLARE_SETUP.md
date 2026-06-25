@@ -427,10 +427,25 @@ CSVをSQLに変換する例:
 npm run catalog:sql -- --input ./work/jpx.csv --out ./work/company_catalog.sql
 ```
 
+数万件の法人番号データを入れる場合は、1つの巨大SQLではなく分割SQLにします。国税庁サイトではUnicode CSVも提供されているので、まずUnicode CSVを選んでください。Shift-JISは文字化けや変換ミスを避けるため、このスクリプトでは扱いません。
+
+例: 東京都の法人番号CSVを5,000件ずつSQLへ分割する
+
+```bash
+npm run catalog:sql -- --preset nta --source nta --input ./work/nta_tokyo.csv --out-dir ./work/catalog-sql --chunk-rows 5000 --active-only
+```
+
 D1へ投入する例:
 
 ```bash
 npx wrangler d1 execute job-hunt-vault --remote --file ./work/company_catalog.sql
+```
+
+分割SQLを投入する場合は、`company_catalog_0001.sql` から順番に実行します。
+
+```bash
+npx wrangler d1 execute job-hunt-vault --remote --file ./work/catalog-sql/company_catalog_0001.sql
+npx wrangler d1 execute job-hunt-vault --remote --file ./work/catalog-sql/company_catalog_0002.sql
 ```
 
 CSVには `別名`、`略称`、`通称`、`aliases`、`alias`、`short_name`、`common_name` の列を足せます。たとえば `東京地下鉄株式会社` の別名に `東京メトロ` を入れると、画面で `東京メトロ` と検索して正式名称へ反映できます。

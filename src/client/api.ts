@@ -87,6 +87,7 @@ export type CatalogCompany = {
   ticker: string | null;
   exchange: string | null;
   logo_url: string | null;
+  metadata_json: string | null;
   updated_at: string;
 };
 
